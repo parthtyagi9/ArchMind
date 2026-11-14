@@ -35,16 +35,9 @@ fi
 echo "== Installing backend dependencies"
 (cd backend && uv sync -q)
 
-echo "== Checking MongoDB connection"
-(cd backend && uv run python -c "from app.db import ping; print(ping())") || {
-  echo "Could not reach Atlas. Check: your IP is in Network Access of the project that owns the cluster, and the user/password in MONGODB_URI."; exit 1; }
-
-echo "== Checking Gemini"
-(cd backend && uv run python -c "
-from app.memory.embeddings import GeminiEmbedder; from app.agents.llm import GeminiLLM, Classification
-print('embedding dims:', len(GeminiEmbedder().embed('hello')))
-llm = GeminiLLM(); r = llm.structured("Classify.", "payment-service AccessDeniedException reading secret", Classification); print("llm ok:", r.failure_category, "via", llm.model_name)
-") || { echo "Gemini check failed: verify GEMINI_API_KEY and LLM_MODEL in backend/.env"; exit 1; }
+echo "== Checking MongoDB and Gemini"
+(cd backend && uv run python -m scripts.check_services) || {
+  echo "Pre-flight failed. MongoDB: check Network Access + MONGODB_URI. Gemini: check GEMINI_API_KEY / LLM_MODEL."; exit 1; }
 
 echo "== Creating collections, validators, indexes and the vector index"
 (cd backend && uv run python -m scripts.create_indexes)
