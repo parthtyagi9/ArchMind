@@ -4,11 +4,14 @@ bag-of-words stand-in used only by unit tests, which cannot reach Gemini."""
 from __future__ import annotations
 
 import hashlib
+import logging
 import math
 import re
 from typing import Protocol
 
 from app.config import get_settings
+
+log = logging.getLogger("recallops.embeddings")
 
 
 class Embedder(Protocol):
@@ -67,13 +70,17 @@ class VoyageEmbedder:
     def embed(self, text: str, *, kind: str = "document") -> list[float]:
         body = {"input": [text], "model": self.model, "input_type": "document" if kind == "document" else "query",
                 "output_dimension": self.dimensions}
+        import time
+
         last = None
-        for attempt in range(3):
+        for attempt in range(5):
             r = self._http.post(self._url, json=body)
             if r.status_code in (429, 500, 502, 503):
                 last = r.text[:200]
-                import time
-                time.sleep(1.5 * (attempt + 1))
+                # Free-tier keys are limited to 3 requests/min: wait out the window instead of failing.
+                wait = 21 if r.status_code == 429 else 2 * (attempt + 1)
+                log.warning("Voyage %s; retrying in %ss", r.status_code, wait)
+                time.sleep(wait)
                 continue
             if r.status_code >= 400:
                 raise RuntimeError(f"Voyage API {r.status_code}: {r.text[:300]}")
