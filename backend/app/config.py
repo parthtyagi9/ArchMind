@@ -19,6 +19,19 @@ class Settings(BaseSettings):
     gemini_embedding_model: str = "gemini-embedding-001"
     embedding_dimensions: int = 1024
 
+    # Semantic code search: indexed files are split into chunks and embedded with a code model, then results are
+    # reranked. Needs Voyage (or Gemini as a fallback embedder). Without either, code search stays keyword-only.
+    code_search_enabled: bool = True
+    voyage_code_model: str = "voyage-code-3"
+    code_embedding_dimensions: int = 1024  # must equal numDimensions of code_vector_index
+    code_vector_index_name: str = "code_vector_index"
+    code_max_chunks: int = 4000  # per repository
+    # First batch size in (estimated) tokens. Halved automatically whenever Voyage answers 429, so free-tier keys
+    # (3 requests / 10K tokens per minute) still finish, just slowly.
+    voyage_batch_tokens: int = 60000
+    rerank_enabled: bool = True
+    voyage_rerank_model: str = "rerank-2.5"
+
     # Reasoning LLM (structured output). Fallbacks are tried on overload (503), rate limit (429) or unknown model (404).
     gemini_api_key: str = ""
     llm_provider: str = "gemini"

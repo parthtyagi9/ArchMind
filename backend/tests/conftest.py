@@ -9,7 +9,7 @@ from pymongo import ASCENDING, IndexModel
 from app.agents.llm import LLMAnswer, LLMConstraint, set_llm
 from app.config import get_settings
 from app.db import set_db
-from app.memory.embeddings import HashEmbedder, set_embedder
+from app.memory.embeddings import HashEmbedder, reset_providers, set_code_embedder, set_embedder, set_reranker
 
 
 class ScriptedLLM:
@@ -49,12 +49,14 @@ def env():
     saved = (s.vector_backend, s.memory_min_score, s.session_secret)
     s.vector_backend, s.memory_min_score, s.session_secret = "local", 0.5, "test-secret"
     set_embedder(HashEmbedder(s.embedding_dimensions))
+    set_code_embedder(HashEmbedder(s.code_embedding_dimensions))  # offline; tests never reach Voyage
+    set_reranker(None)
     llm = ScriptedLLM()
     set_llm(llm)
     yield {"db": db, "llm": llm}
     s.vector_backend, s.memory_min_score, s.session_secret = saved
     set_db(None)
-    set_embedder(None)
+    reset_providers()
     set_llm(None)
 
 

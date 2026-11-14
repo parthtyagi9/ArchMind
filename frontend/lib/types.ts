@@ -30,6 +30,8 @@ export interface Repo {
   file_count: number;
   indexed_at: string | null;
   connected_by: string;
+  /** Semantic code search: chunks embedded with voyage-code-3 for the agent's code search. */
+  search?: { status: "none" | "embedding" | "ready" | "failed" | "disabled"; done: number; total: number; model: string | null; error: string | null; indexed_at?: string | null };
 }
 
 export type SourceType = "jira" | "confluence" | "github" | "human" | "agent_run";

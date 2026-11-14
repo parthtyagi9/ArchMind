@@ -249,7 +249,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setWorkspace((w) => (w?.kind === "group" && w.groupId === id ? null : w));
   }, []);
 
-  const indexingKey = repos.filter((r) => r.status === "indexing").map((r) => r.id).join(",");
+  // keep polling while a repo indexes, and while its semantic code search is still embedding in the background
+  const indexingKey = repos.filter((r) => r.status === "indexing" || r.search?.status === "embedding").map((r) => r.id).join(",");
   useEffect(() => {
     if (!indexingKey) return;
     const ids = indexingKey.split(",");
