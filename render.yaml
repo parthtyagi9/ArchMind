@@ -1,0 +1,56 @@
+# Render Blueprint: the FastAPI backend and the Next.js frontend.
+# The browser only talks to the frontend; it proxies /api to the backend over Render's private network,
+# so the httpOnly session cookie stays same-origin.
+services:
+  - type: web
+    name: archmind-api
+    runtime: python
+    rootDir: backend
+    region: oregon
+    # Always on: indexing, agent runs and map builds run in background threads (a sleeping instance kills them).
+    plan: starter
+    # Exactly one instance and one worker: background work is in-process and startup marks unfinished work as interrupted.
+    numInstances: 1
+    buildCommand: pip install --upgrade uv && uv sync --frozen --no-dev
+    startCommand: .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1 --proxy-headers --forwarded-allow-ips='*'
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.13.5"
+      - key: MONGODB_URI
+        sync: false
+      - key: MONGODB_DATABASE
+        value: archmind
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: VOYAGE_API_KEY
+        sync: false
+      - key: GITHUB_CLIENT_ID
+        sync: false
+      - key: GITHUB_CLIENT_SECRET
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: FRONTEND_ORIGIN
+        fromService:
+          type: web
+          name: archmind-web
+          property: host
+
+  - type: web
+    name: archmind-web
+    runtime: node
+    rootDir: frontend
+    region: oregon
+    plan: starter
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start -- --port $PORT
+    healthCheckPath: /
+    envVars:
+      - key: NODE_VERSION
+        value: "22.12.0"
+      - key: BACKEND_URL
+        fromService:
+          type: web
+          name: archmind-api
+          property: hostport

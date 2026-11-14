@@ -1,6 +1,7 @@
 """Central configuration. Every secret comes from the environment / backend/.env, never source."""
 from functools import lru_cache
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -49,6 +50,13 @@ class Settings(BaseSettings):
     session_secret: str = "dev-only-change-me"
     encryption_key: str = ""  # optional Fernet key; derived from session_secret when empty
     frontend_origin: str = "http://localhost:3000"
+
+    @field_validator("frontend_origin")
+    @classmethod
+    def _origin_has_scheme(cls, v: str) -> str:
+        """Render hands over a bare hostname (archmind-web.onrender.com); public origins are https."""
+        v = v.strip().rstrip("/")
+        return v if "://" in v else f"https://{v}"
     session_max_age_days: int = 7
 
     # GitHub OAuth app (https://github.com/settings/developers). Callback: <frontend_origin>/api/auth/github/callback
