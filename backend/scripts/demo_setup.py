@@ -9,6 +9,7 @@ Passwords are generated on first run and written to ../demo-accounts.txt (keep i
 from __future__ import annotations
 
 import argparse
+import os
 import pathlib
 import secrets
 import sys
@@ -119,7 +120,15 @@ def main() -> None:
     ok(httpx.get(f"{base}/api/health", timeout=10), "backend health (is start-app running?)")
     creds = load_creds()
 
-    alice = account(base, creds, "Alice Chen", "alice@archmind.demo", org_name="Alpha Streaming")
+    owner_email, owner_pw = os.environ.get("OWNER_EMAIL"), os.environ.get("OWNER_PASSWORD")
+    if owner_email and owner_pw:  # use an existing owner account (its current organization) instead of creating Alice
+        alice = httpx.Client(base_url=base, timeout=60)
+        ok(alice.post("/api/auth/login", json={"email": owner_email, "password": owner_pw}), f"sign in as {owner_email}")
+        print(f"signed in as existing owner <{owner_email}>")
+        member_name, member_email = "Priya Shah", "priya@archmind.demo"
+    else:
+        alice = account(base, creds, "Alice Chen", "alice@archmind.demo", org_name="Alpha Streaming")
+        member_name, member_email = "Dev Patel", "dev@archmind.demo"
     kafka_alpha = connect_repo(alice, "Alpha")
     memories(alice, kafka_alpha)
 
@@ -128,12 +137,12 @@ def main() -> None:
     inv = next((i for i in invites if i.get("role") == "member" and i.get("team") == "payments"), None) \
         or ok(alice.post("/api/org/invites", json={"role": "member", "team": "payments", "expires_days": 7}), "create invite")
     inv = inv.get("invite", inv)
-    dev = account(base, creds, "Dev Patel", "dev@archmind.demo", invite=inv["code"])
+    dev = account(base, creds, member_name, member_email, invite=inv["code"])
 
     have = ok(dev.get("/api/memories?status=pending"), "list pending")
     have = have.get("memories", have) if isinstance(have, dict) else have
     spare = "Payments consumer keeps max.poll.records at 500"
-    if not any(m.get("title") == spare for m in have):
+    if not any(m.get("title") == spare for m in have) and dev.get("/api/auth/me").json().get("org", {}).get("role") == "member":
         out = ok(dev.post("/api/memories", json={
             "title": spare, "memory_type": "repository_convention", "scope": "org", "components": ["consumer"],
             "content": "The payments consumer keeps max.poll.records=500; higher values exceeded max.poll.interval.ms during settlement "
@@ -141,6 +150,10 @@ def main() -> None:
         out = out.get("memory", out)
         print(f"spare proposal from Dev: {out.get('status')}")
 
+    if creds.get("bob@beta.demo") and owner_email:
+        print("Beta Logistics (Bob) already set up; skipping")
+        print(f"\nDONE. Sign-in details are in {CREDS}")
+        return
     bob = account(base, creds, "Bob Okafor", "bob@beta.demo", org_name="Beta Logistics")
     connect_repo(bob, "Beta")
     print(f"\nDONE. Sign-in details are in {CREDS}")
