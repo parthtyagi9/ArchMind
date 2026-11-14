@@ -8,6 +8,10 @@ from pydantic import BaseModel, Field
 from app.deps import Principal, current_principal
 from app.integrations.github import GitHubError, get_github_client
 from app.memory import governance
+from fastapi import HTTPException, status
+
+from app.archmap import service as archmap
+from app.deps import require
 from app.services import groups, provenance, repos
 
 log = logging.getLogger("archmind.api.groups")
@@ -80,6 +84,27 @@ def group_graph(group_id: str, p: Principal = Depends(current_principal)) -> dic
     counts = _memory_counts(p, g, graph)
     graph["nodes"] = [{**n, "memory_count": counts.get(n["id"], 0)} for n in graph["nodes"]]
     return graph
+
+
+@router.get("/groups/{group_id}/archmap")
+def group_archmap(group_id: str, p: Principal = Depends(current_principal)) -> dict:
+    g = groups.get_group(p, group_id)
+    return archmap.respond("group", group_id, archmap.group_map(g, groups.member_repos(g)))
+
+
+@router.post("/groups/{group_id}/archmap/labels")
+def group_archmap_labels(group_id: str, p: Principal = Depends(current_principal)) -> dict:
+    require(p, "ask")
+    g = groups.get_group(p, group_id)
+    members = groups.member_repos(g)
+    m = archmap.group_map(g, members)
+    if not archmap.cached_labels("group", group_id, m["fingerprint"]):
+        try:
+            archmap.make_labels("group", group_id, m, [r["full_name"] for r in members])
+        except Exception as e:
+            log.warning("archmap labels failed for group %s: %s", group_id, e)
+            raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"Could not generate names with Gemini: {str(e)[:200]}")
+    return archmap.respond("group", group_id, m)
 
 
 @router.get("/groups/{group_id}/components/{node_id}")

@@ -1,23 +1,41 @@
 @import "tailwindcss";
 
+/* Theme tokens. Dark ("Blueprint": drafting-ink surfaces, blueprint-cyan for action, amber for review) is the default;
+   [data-theme="light"] on <html> switches every utility (bg-panel, text-muted ...) to the paper version. */
+:root, [data-theme="dark"] {
+  --bg: #0c1422; --panel: #101b2d; --panel-2: #152238; --line: #22324c; --muted: #94a4bd; --fg: #e8eef7;
+  --brand: #4fb3ff; --brand-soft: #4fb3ff1f; --ok: #36c98f; --ok-soft: #36c98f1c; --warn: #f3b63f; --warn-soft: #f3b63f1c;
+  --bad: #ef6b6b; --bad-soft: #ef6b6b1c; --info: #9db7ff; --info-soft: #9db7ff17;
+  --grid-line: #4fb3ff0a; --canvas-dot: #1c2a42; --scrollbar: #2a3c5a; --selection: #4fb3ff4d;
+  --syn-plain: #c9cde0; --syn-comment: #6b7290; --syn-string: #a5e3a0; --syn-number: #f5b97a; --syn-keyword: #c792ea; --syn-fn: #82aaff; --syn-type: #ffcb6b;
+  color-scheme: dark;
+}
+[data-theme="light"] {
+  --bg: #f4f7fb; --panel: #ffffff; --panel-2: #edf2f8; --line: #d5dde9; --muted: #52627a; --fg: #111c2d;
+  --brand: #0b78c9; --brand-soft: #0b78c91a; --ok: #047857; --ok-soft: #0478571a; --warn: #b45309; --warn-soft: #f59e0b24;
+  --bad: #dc2626; --bad-soft: #dc26261a; --info: #3b5bdb; --info-soft: #3b5bdb17;
+  --grid-line: #0b78c90d; --canvas-dot: #cfd8e5; --scrollbar: #c2cbd9; --selection: #0b78c933;
+  --syn-plain: #24292f; --syn-comment: #6e7781; --syn-string: #0a7d32; --syn-number: #b35900; --syn-keyword: #8250df; --syn-fn: #0550ae; --syn-type: #953800;
+  color-scheme: light;
+}
+
 @theme inline {
-  /* "Blueprint": drafting-ink surfaces, blueprint-cyan for action, amber for review */
-  --color-bg: #0c1422;
-  --color-panel: #101b2d;
-  --color-panel-2: #152238;
-  --color-line: #22324c;
-  --color-muted: #94a4bd;
-  --color-fg: #e8eef7;
-  --color-brand: #4fb3ff;
-  --color-brand-soft: #4fb3ff1f;
-  --color-ok: #36c98f;
-  --color-ok-soft: #36c98f1c;
-  --color-warn: #f3b63f;
-  --color-warn-soft: #f3b63f1c;
-  --color-bad: #ef6b6b;
-  --color-bad-soft: #ef6b6b1c;
-  --color-info: #9db7ff;
-  --color-info-soft: #9db7ff17;
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-panel-2: var(--panel-2);
+  --color-line: var(--line);
+  --color-muted: var(--muted);
+  --color-fg: var(--fg);
+  --color-brand: var(--brand);
+  --color-brand-soft: var(--brand-soft);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-bad: var(--bad);
+  --color-bad-soft: var(--bad-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
   --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
 }
@@ -28,8 +46,8 @@ body {
   /* faint blueprint grid: the one decorative element */
   background-color: var(--color-bg);
   background-image:
-    linear-gradient(#4fb3ff0a 1px, transparent 1px),
-    linear-gradient(90deg, #4fb3ff0a 1px, transparent 1px);
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
   background-size: 28px 28px;
   color: var(--color-fg);
   font-family: var(--font-sans);
@@ -46,9 +64,23 @@ code, pre, kbd, .font-mono { font-family: var(--font-mono); }
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
 
-::selection { background: #4fb3ff4d; }
+::selection { background: var(--selection); }
 
-* { scrollbar-width: thin; scrollbar-color: #2a3c5a transparent; }
+* { scrollbar-width: thin; scrollbar-color: var(--scrollbar) transparent; }
+
+/* dotted canvas behind architecture diagrams */
+.canvas-dots { background-image: radial-gradient(circle, var(--canvas-dot) 1px, transparent 1px); background-size: 24px 24px; }
+
+/* The folder graph (ArchGraph) is SVG with colours tuned for dark. In light mode, CSS (which beats SVG presentation
+   attributes) remaps its neutral colours. The architecture map (ArchDiagram) has its own light palette. */
+[data-theme="light"] svg [fill="#eef0f8"], [data-theme="light"] svg [fill="#e8eaf2"], [data-theme="light"] svg [fill="#d6dbf5"] { fill: var(--fg); }
+[data-theme="light"] svg [fill="#9aa1bd"], [data-theme="light"] svg [fill="#aab0c8"], [data-theme="light"] svg text[fill="#8a90a8"] { fill: var(--muted); }
+[data-theme="light"] svg [fill="#0d0f17"], [data-theme="light"] svg [fill="#12141d"] { fill: var(--panel); }
+[data-theme="light"] svg [stroke="#5f6788"], [data-theme="light"] svg [stroke="#5b6385"] { stroke: #8593ad; }
+[data-theme="light"] svg [fill="#7d84a3"], [data-theme="light"] svg path[fill="#5b6385"] { fill: #7c8aa5; }
+[data-theme="light"] svg [stroke="#a7b0ff"] { stroke: var(--brand); }
+[data-theme="light"] svg [fill="#a7b0ff"] { fill: var(--brand); }
+[data-theme="light"] svg [fill="#5eead4"] { fill: #0f766e; }
 
 @keyframes pulse-ring {
   0% { opacity: 0.9; transform: scale(1); }

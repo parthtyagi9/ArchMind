@@ -64,6 +64,10 @@ interface AppState {
   closeTab: (id: string) => void;
   sidebar: SidebarPanel;
   setSidebar: (p: SidebarPanel) => void;
+  sidebarOpen: boolean;
+  setSidebarOpen: (b: boolean) => void;
+  chatOpen: boolean;
+  setChatOpen: (b: boolean) => void;
 
   memoryOn: boolean;
   setMemoryOn: (b: boolean) => void;
@@ -79,6 +83,8 @@ interface AppState {
   showInArchitecture: (ids: string[]) => void;
   selectedNode: string | null;
   setSelectedNode: (id: string | null) => void;
+  archFeature: string | null; // feature opened in the architecture map
+  setArchFeature: (id: string | null) => void;
 
   focusMemoryId: string | null;
   clearFocusMemory: () => void;
@@ -132,7 +138,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [tabs, setTabs] = useState<Tab[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
-  const [sidebar, setSidebar] = useState<SidebarPanel>("files");
+  const [sidebar, setSidebarState] = useState<SidebarPanel>("files");
+  // panel visibility is a per-browser preference
+  const [sidebarOpen, setSidebarOpenState] = useState(true);
+  const [chatOpen, setChatOpenState] = useState(true);
+  useEffect(() => {
+    try {
+      setSidebarOpenState(localStorage.getItem("archmind-sidebar") !== "closed");
+      setChatOpenState(localStorage.getItem("archmind-chat") !== "closed");
+    } catch { /* storage blocked: panels start open */ }
+  }, []);
+  const setSidebarOpen = useCallback((b: boolean) => {
+    setSidebarOpenState(b);
+    try { localStorage.setItem("archmind-sidebar", b ? "open" : "closed"); } catch { /* ignore */ }
+  }, []);
+  const setChatOpen = useCallback((b: boolean) => {
+    setChatOpenState(b);
+    try { localStorage.setItem("archmind-chat", b ? "open" : "closed"); } catch { /* ignore */ }
+  }, []);
+  // choosing a sidebar view always shows the sidebar
+  const setSidebar = useCallback((p: SidebarPanel) => { setSidebarState(p); setSidebarOpen(true); }, [setSidebarOpen]);
 
   const [memoryOn, setMemoryOn] = useState(true);
   const [pendingSelection, setPendingSelection] = useState<Selection | null>(null);
@@ -140,6 +165,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [askRequest, setAskRequest] = useState<AskRequest | null>(null);
   const [highlight, setHighlight] = useState<string[]>([]);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
+  const [archFeature, setArchFeature] = useState<string | null>(null);
   const [focusMemoryId, setFocusMemoryId] = useState<string | null>(null);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [comparePrefill, setComparePrefill] = useState<ComparePrefill | null>(null);
@@ -149,7 +175,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const resetWorkspaceState = useCallback(() => {
     setWorkspace(null); setTabs([]); setActiveTabId(null); setSettingsOpen(false);
     setPendingSelection(null); setActiveRange(null); setAskRequest(null); setHighlight([]);
-    setSelectedNode(null); setFocusMemoryId(null); setSelectedRunId(null); setComparePrefill(null);
+    setSelectedNode(null); setArchFeature(null); setFocusMemoryId(null); setSelectedRunId(null); setComparePrefill(null);
   }, []);
 
   const loadRepos = useCallback(async () => {
@@ -332,9 +358,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const requestAsk = useCallback((question: string, selection: Selection | null) => {
     nonce.current += 1;
     setAskRequest({ nonce: nonce.current, question, selection });
+    setChatOpen(true);
     setActiveRange(selection);
     setPendingSelection(null);
-  }, []);
+  }, [setChatOpen]);
 
   const showInArchitecture = useCallback((ids: string[]) => { setHighlight(ids); openArch(); }, [openArch]);
   const openMemory = useCallback((id: string) => { setFocusMemoryId(id); openPage("memory"); }, [openPage]);
@@ -355,13 +382,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     pendingCount, refreshPending, integrations, refreshIntegrations, repos, reposLoading, reposError, refreshRepos: loadRepos, upsertRepo, removeRepoLocal,
     groups, groupsError, refreshGroups: loadGroups, upsertGroup, removeGroupLocal,
     workspace, repo, group, groupMembers, openRepo, openGroup, openLocal, closeWorkspace, settingsOpen, setSettingsOpen,
-    tabs, activeTabId, setActiveTabId, openFile, openPage, openArch, closeTab, sidebar, setSidebar,
+    tabs, activeTabId, setActiveTabId, openFile, openPage, openArch, closeTab, sidebar, setSidebar, sidebarOpen, setSidebarOpen, chatOpen, setChatOpen,
     memoryOn, setMemoryOn, pendingSelection, setPendingSelection, activeRange, setActiveRange, askRequest, requestAsk,
-    highlight, setHighlight, showInArchitecture, selectedNode, setSelectedNode,
+    highlight, setHighlight, showInArchitecture, selectedNode, setSelectedNode, archFeature, setArchFeature,
     focusMemoryId, clearFocusMemory: () => setFocusMemoryId(null), openMemory, selectedRunId, openRun, comparePrefill, openCompare,
   }), [status, bootError, me, can, afterSignIn, signOut, switchOrg, createOrg, notice, pendingCount, refreshPending, integrations, refreshIntegrations, repos, reposLoading, reposError, loadRepos,
-    upsertRepo, removeRepoLocal, groups, groupsError, loadGroups, upsertGroup, removeGroupLocal, workspace, repo, group, groupMembers, openRepo, openGroup, openLocal, closeWorkspace, settingsOpen, tabs, activeTabId, openFile, openPage, openArch, closeTab, sidebar,
-    memoryOn, pendingSelection, activeRange, askRequest, requestAsk, highlight, showInArchitecture, selectedNode, focusMemoryId, openMemory, selectedRunId, openRun,
+    upsertRepo, removeRepoLocal, groups, groupsError, loadGroups, upsertGroup, removeGroupLocal, workspace, repo, group, groupMembers, openRepo, openGroup, openLocal, closeWorkspace, settingsOpen, tabs, activeTabId, openFile, openPage, openArch, closeTab, sidebar, setSidebar, sidebarOpen, setSidebarOpen, chatOpen, setChatOpen,
+    memoryOn, pendingSelection, activeRange, askRequest, requestAsk, highlight, showInArchitecture, selectedNode, archFeature, focusMemoryId, openMemory, selectedRunId, openRun,
     comparePrefill, openCompare]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

@@ -50,11 +50,11 @@ export const langOf = (path: string) => {
 };
 
 export const TOKEN_CLASS: Record<Tok["c"], string> = {
-  plain: "text-[#c9cde0]",
-  comment: "text-[#6b7290] italic",
-  string: "text-[#a5e3a0]",
-  number: "text-[#f5b97a]",
-  keyword: "text-[#c792ea]",
-  fn: "text-[#82aaff]",
-  type: "text-[#ffcb6b]",
+  plain: "text-[var(--syn-plain)]",
+  comment: "text-[var(--syn-comment)] italic",
+  string: "text-[var(--syn-string)]",
+  number: "text-[var(--syn-number)]",
+  keyword: "text-[var(--syn-keyword)]",
+  fn: "text-[var(--syn-fn)]",
+  type: "text-[var(--syn-type)]",
 };

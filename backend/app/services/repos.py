@@ -161,6 +161,11 @@ def index_repo(repo_id: str, token: str | None) -> None:
         graph = code.build_graph(files)
         db.repo_graphs.replace_one({"_id": repo_id}, {"_id": repo_id, "org_id": repo["org_id"], "nodes": graph["nodes"],
                                                       "edges": graph["edges"], "interfaces": graph["interfaces"], "built_at": utcnow()}, upsert=True)
+        try:  # the class-level architecture map; a failure here must not fail indexing (it is rebuilt on first view)
+            from app.archmap import build as archmap_build
+            db.repo_graphs.update_one({"_id": repo_id}, {"$set": {"archmap": archmap_build.build(files)}})
+        except Exception:
+            log.exception("architecture map failed for %s", repo["full_name"])
         db.repos.update_one({"_id": repo_id}, {"$set": {"status": "ready", "file_count": total, "indexed_at": utcnow(), "error": None}})
         audit.record("repo.indexed", None, tenant_id=repo["org_id"], details={"repo": repo["full_name"], "files": total,
                                                                                "components": len(graph["nodes"])})
