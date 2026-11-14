@@ -190,12 +190,45 @@ def search_code(repo_ids: str | list[str], terms: list[str], limit: int = 6) -> 
     return hits
 
 
+def _code_context(ctx: Ctx, repo: dict, sel: dict) -> list[dict]:
+    """The code itself is evidence: the selection with its surrounding lines, plus the places elsewhere in the repository
+    that use or relate to it (found by code search). Git history explains *when*; this lets the agent explain *what for*
+    even when commit messages are terse."""
+    url = f"https://github.com/{repo['full_name']}/blob/{repo['branch']}/{sel['path']}"
+    out: list[dict] = []
+    if ctx.file_context:
+        first = ctx.file_context.split(":", 1)[0]
+        last = ctx.file_context.rsplit("\n", 1)[-1].split(":", 1)[0]
+        ref = f"{sel['path']}:{first}-{last}"
+        out.append({"kind": "code", "ref": ref, "title": f"{ref} (selected code and surroundings)", "detail": clip(ctx.file_context, 2500),
+                    "url": f"{url}#L{first}-L{last}"})
+    try:
+        query = " ".join(x for x in (ctx.question, sel["text"][:600]) if x)
+        with ctx.rec.tool("github", f"search the repository for code related to {sel['path']}"):
+            found = codesearch.search([repo["_id"]], query, ctx.terms[:5], limit=8)
+        n = 0
+        for h in found["hits"]:
+            if h["path"] == sel["path"] and h["start_line"] <= sel["end_line"] + 25 and h["end_line"] >= sel["start_line"] - 25:
+                continue  # already covered by the selection context
+            loc = f"{h['path']}:{h['start_line']}-{h['end_line']}"
+            out.append({"kind": "code", "ref": loc, "title": f"{loc} (related code)", "detail": clip(h["text"], 700),
+                        "url": f"https://github.com/{repo['full_name']}/blob/{repo['branch']}/{h['path']}#L{h['start_line']}-L{h['end_line']}"})
+            n += 1
+            if n >= 5:
+                break
+        ctx.rec.note_tool("github", f"{n} related code passage{'s' if n != 1 else ''} elsewhere in the repository")
+    except Exception as e:  # code search is best-effort here; history and the selection still stand
+        log.info("related-code search failed: %s", e)
+    return out
+
+
 def github_agent(ctx: Ctx) -> list[dict]:
     rec, repo, sel = ctx.rec, ctx.repo, ctx.selection
     out: list[dict] = []
     try:
         keys_from: list[str] = []
         if ctx.kind == "why" and sel and repo:
+            out += _code_context(ctx, repo, sel)
             client = get_github_client(repos.provenance_token(ctx.p, repo))
             commits: list[dict] = []
             if client.authenticated:
@@ -205,8 +238,12 @@ def github_agent(ctx: Ctx) -> list[dict]:
                 except GitHubError as e:
                     log.info("blame unavailable, falling back to history: %s", e)
             if not commits:
-                with rec.tool("github", f"list commits that touched {sel['path']}"):
-                    commits = client.file_history(repo["full_name"], repo["branch"], sel["path"], 8)
+                try:
+                    with rec.tool("github", f"list commits that touched {sel['path']}"):
+                        commits = client.file_history(repo["full_name"], repo["branch"], sel["path"], 8)
+                except GitHubError as e:  # keep the code evidence even when history is unavailable (rate limit, private repo)
+                    log.info("file history unavailable: %s", e)
+                    commits = []
                 for c in commits[:4]:
                     try:
                         with rec.tool("github", f"find pull requests for commit {c['short']}"):
