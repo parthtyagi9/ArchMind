@@ -274,7 +274,8 @@ def metrics(state: AgentState) -> dict:
             "state_changing_calls": sum(1 for s in tool_steps if s.get("state_changing") and "result" in s),
             "tool_sequence": [s["tool"] for s in tool_steps],
             "resolved": state.get("status") == "resolved",
-            "llm_decisions": sum(1 for s in steps if s["kind"] == "plan")}
+            "llm_decisions": sum(1 for s in steps if s["kind"] == "plan"),
+            "llm_model": getattr(get_llm(), "model_name", None)}
 
 
 # ---------------------------------------------------------------- routing

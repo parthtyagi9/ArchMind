@@ -22,6 +22,7 @@ export type Metrics = {
   tool_sequence: string[];
   resolved: boolean;
   llm_decisions: number;
+  llm_model?: string;
 };
 
 export type Run = {
@@ -64,7 +65,7 @@ export type Experiment = {
     run_id: string; status: string; status_reason?: string; metrics: Metrics; retrieved_memory_ids: string[];
     steps: Step[]; verification?: Run["verification"];
   }>;
-  summary: { same_tool_sequence: boolean; tool_calls_delta: number; diagnostic_calls_delta: number; both_resolved: boolean };
+  summary: { same_tool_sequence: boolean; tool_calls_delta: number; diagnostic_calls_delta: number; both_resolved: boolean; same_model?: boolean };
   controls: Record<string, unknown>;
 };
 

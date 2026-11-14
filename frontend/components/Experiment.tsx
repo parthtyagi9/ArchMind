@@ -50,7 +50,8 @@ export function Experiment({ me }: { me: Me }) {
             {exp.summary.same_tool_sequence
               ? "Both arms chose the identical tool sequence: memory did not change behavior on this run. Reported as measured."
               : `Memory changed the execution path (${exp.summary.tool_calls_delta >= 0 ? "+" : ""}${exp.summary.tool_calls_delta} tool calls, ${exp.summary.diagnostic_calls_delta >= 0 ? "+" : ""}${exp.summary.diagnostic_calls_delta} diagnostics). Both resolved: ${exp.summary.both_resolved ? "yes" : "no"}.`}
-            <span className="ml-auto font-mono">{exp._id}</span>
+            {exp.summary.same_model === false && <span className="text-warn"> Warning: arms ran on different models ({a?.llm_model} vs {b?.llm_model}) due to Gemini fallback; re-run for a clean comparison.</span>}
+            <span className="ml-auto font-mono">{exp._id} · {b?.llm_model}</span>
           </div>
         )}
       </Card>

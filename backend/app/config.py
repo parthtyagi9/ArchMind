@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     embedding_dimensions: int = 768
     llm_model: str = "gemini-3.8-flash"
     llm_temperature: float = 0.0
+    # Tried in order when the primary model is overloaded (503), rate-limited (429) or unknown (404).
+    llm_fallback_models: str = "gemini-3.5-flash,gemini-2.5-flash,gemini-3.5-flash-lite"
 
     # "atlas" uses $vectorSearch. "local" is an exact cosine scan used ONLY by unit tests
     # (mongomock has no $vectorSearch). Both paths share the same governance filter.

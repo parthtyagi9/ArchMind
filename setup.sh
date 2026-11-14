@@ -43,7 +43,7 @@ echo "== Checking Gemini"
 (cd backend && uv run python -c "
 from app.memory.embeddings import GeminiEmbedder; from app.agents.llm import GeminiLLM, Classification
 print('embedding dims:', len(GeminiEmbedder().embed('hello')))
-print('llm ok:', GeminiLLM().structured('Classify.', 'payment-service AccessDeniedException reading secret', Classification).failure_category)
+llm = GeminiLLM(); r = llm.structured("Classify.", "payment-service AccessDeniedException reading secret", Classification); print("llm ok:", r.failure_category, "via", llm.model_name)
 ") || { echo "Gemini check failed: verify GEMINI_API_KEY and LLM_MODEL in backend/.env"; exit 1; }
 
 echo "== Creating collections, validators, indexes and the vector index"

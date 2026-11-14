@@ -127,7 +127,8 @@ def run_experiment(p: Principal, incident_id: str) -> dict:
     summary = {"same_tool_sequence": a["tool_sequence"] == b["tool_sequence"],
                "tool_calls_delta": b["tool_calls"] - a["tool_calls"],
                "diagnostic_calls_delta": b["diagnostic_calls"] - a["diagnostic_calls"],
-               "both_resolved": a["resolved"] and b["resolved"]}
+               "both_resolved": a["resolved"] and b["resolved"],
+               "same_model": a.get("llm_model") == b.get("llm_model")}
     doc = {"_id": exp_id, "tenant_id": p.tenant_id, "incident_id": incident_id, "created_by": p.user_id,
            "created_at": utcnow(), "arms": arms, "summary": summary,
            "controls": {"approval_mode": "pre_approved", "write_memory": False, "simulator_reset_before_each_arm": True}}

@@ -3,6 +3,7 @@ every decision is parsed into a Pydantic model, then checked again by the determ
 from __future__ import annotations
 
 import logging
+import time
 from typing import Literal, Optional, Protocol, TypeVar
 
 from pydantic import BaseModel, Field, ValidationError
@@ -46,8 +47,33 @@ class GeminiLLM:
         if not s.gemini_api_key:
             raise RuntimeError("GEMINI_API_KEY is not set")
         self._client = genai.Client(api_key=s.gemini_api_key)
-        self.model_name = s.llm_model
+        self.models = [s.llm_model] + [m.strip() for m in s.llm_fallback_models.split(",") if m.strip() and m.strip() != s.llm_model]
+        self.model_name = self.models[0]
         self.temperature = s.llm_temperature
+
+    def _generate(self, prompt: str, cfg):
+        """Try the primary model, then fallbacks, on overload/rate-limit (503/429/500). The model actually
+        used is kept in self.model_name so runs record it."""
+        from google.genai import errors
+
+        last: Exception | None = None
+        for model in self.models:
+            for attempt in range(2):
+                try:
+                    resp = self._client.models.generate_content(model=model, contents=prompt, config=cfg)
+                    self.model_name = model
+                    return resp
+                except (errors.ServerError, errors.ClientError) as e:
+                    code = getattr(e, "code", None)
+                    if code not in (429, 500, 503, 404):
+                        raise
+                    last = e
+                    log.warning("Gemini %s on %s (attempt %d); %s", code, model, attempt + 1,
+                                "trying next model" if code == 404 or attempt else "retrying")
+                    if code == 404:
+                        break
+                    time.sleep(1.5)
+        raise RuntimeError(f"All Gemini models unavailable: {last}")
 
     def structured(self, system: str, prompt: str, schema: type[T]) -> T:
         from google.genai import types
@@ -56,7 +82,7 @@ class GeminiLLM:
                                           response_mime_type="application/json", response_schema=schema)
         last: Exception | None = None
         for _ in range(2):
-            resp = self._client.models.generate_content(model=self.model_name, contents=prompt, config=cfg)
+            resp = self._generate(prompt, cfg)
             try:
                 if isinstance(getattr(resp, "parsed", None), schema):
                     return resp.parsed
