@@ -1,0 +1,9 @@
+node_modules/
+out/*
+!out/archmind-demo.mp4
+!out/archmind-poster.png
+!out/archmind-captions.srt
+.remotion/
+public/captures/debug.png
+public/poster.png
+recording-state.json

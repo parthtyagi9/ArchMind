@@ -79,6 +79,10 @@ def test_last_owner_cannot_be_demoted(client):
     assert r.status_code == 409
 
 
-def test_github_oauth_not_configured_reports_false(client):
+def test_github_oauth_not_configured_reports_false(client, monkeypatch):
+    from app.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "github_client_id", "")
+    monkeypatch.setattr(get_settings(), "github_client_secret", "")
     assert client.get("/api/auth/config").json() == {"github_oauth": False}
     assert client.get("/api/auth/github/login").status_code == 503

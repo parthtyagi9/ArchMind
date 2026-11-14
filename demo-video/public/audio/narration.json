@@ -1,0 +1,42 @@
+[
+  [
+    "intro",
+    5,
+    "Code tells you what happens. ArchMind uncovers why, and remembers the rules."
+  ],
+  [
+    "connect",
+    7,
+    "Connect a repository and paste public Jira and Confluence links. No API tokens for public sources."
+  ],
+  [
+    "investigate",
+    9,
+    "Select code and ask why. GitHub, Jira, Confluence, and Memory agents gather evidence in parallel."
+  ],
+  [
+    "answer",
+    7,
+    "Get concrete guidance, with each agent's retrieved evidence available to inspect."
+  ],
+  [
+    "approve",
+    8,
+    "Knowledge starts as a proposal. A human approves its scope, provenance, and expiry."
+  ],
+  [
+    "compare",
+    12,
+    "Then ask the same question with and without memory. Shared evidence makes the difference visible. Here, an approved demo policy adds organizational constraints to the guidance."
+  ],
+  [
+    "govern",
+    7,
+    "Atlas filters memory by tenant, scope, status, and expiry. Correct it, or revoke it from retrieval."
+  ],
+  [
+    "outro",
+    5,
+    "ArchMind. Understand the decision. Govern what your agent remembers."
+  ]
+]

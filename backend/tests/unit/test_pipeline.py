@@ -145,6 +145,45 @@ def test_subagents_gather_real_evidence_and_follow_ticket_keys_from_git_history(
     assert run["orchestrator"]["plan"] == ["github", "jira", "confluence", "memory"]
 
 
+def test_access_questions_receive_live_source_provenance_and_missing_connection_status(world, monkeypatch, env):
+    import json
+
+    repo_id = connect_repo(world, monkeypatch)
+    connect_atlassian(world)
+    env["db"].integrations.update_one({"_id": f"{world['owner_p'].org_id}:atlassian"}, {"$set": {"confluence_ok": False}})
+    pipeline.start_run(world["member_p"], kind="ask", question="can you see jira issues and confluence docs AUTH-311",
+                       repo_id=repo_id, memory_enabled=False, background=False)
+    prompt = env["llm"].prompts[-1]
+    runtime = json.loads(prompt.split("<runtime_context>\n")[1].split("\n</runtime_context>")[0])
+    sources = {s["source"]: s for s in runtime["sources"]}
+    assert runtime["assistant"] == "ArchMind" and runtime["repository_under_analysis"] == "acme/pay"
+    assert sources["jira"]["status"] == "done" and sources["jira"]["findings_retrieved"] == 1
+    assert sources["jira"]["completed_tool_calls"] > 0
+    assert sources["confluence"]["status"] == "skipped" and sources["confluence"]["findings_retrieved"] == 0
+    assert "not connected" in sources["confluence"]["skip_reason"]
+    evidence = json.loads(prompt.split("<untrusted_evidence>\n")[1].split("\n</untrusted_evidence>")[0])
+    issue = next(e for e in evidence if e["ref"] == "AUTH-311")
+    assert issue["source_agent"] == "jira" and issue["url"] == "https://x.atlassian.net/browse/AUTH-311"
+    assert "token" not in json.dumps(runtime).lower()
+
+
+def test_reasoning_distinguishes_failed_source_from_absent_connection(world, monkeypatch, env):
+    import json
+
+    repo_id = connect_repo(world, monkeypatch)
+    connect_atlassian(world)
+
+    class FailedJira(FakeAtlassian):
+        def jira_search(self, *a, **k):
+            raise atl_mod.AtlassianError("Authentication expired", 401)
+
+    monkeypatch.setattr(atl_mod, "get_atlassian", lambda cfg, token: FailedJira())
+    run_sync(world["member_p"], repo_id)
+    runtime = json.loads(env["llm"].prompts[-1].split("<runtime_context>\n")[1].split("\n</runtime_context>")[0])
+    jira = next(s for s in runtime["sources"] if s["source"] == "jira")
+    assert jira["status"] == "error" and jira["failed_tool_calls"] > 0 and jira["skip_reason"] is None
+
+
 def test_unconnected_sources_are_skipped_honestly(world, monkeypatch):
     repo_id = connect_repo(world, monkeypatch)
     run = run_sync(world["member_p"], repo_id)               # no Atlassian connected
@@ -318,3 +357,73 @@ def test_startup_recovery_marks_interrupted_work_failed(world, env):
     assert env["db"].repos.find_one({"_id": "repo_stuck"})["status"] == "failed"
     assert "restart" in env["db"].repos.find_one({"_id": "repo_stuck"})["error"]
     assert env["db"].agent_runs.find_one({"_id": "run_stuck"})["status"] == "failed"
+
+
+def test_public_sources_feed_agents_without_credentials_and_only_for_attached_repo(world, monkeypatch, env):
+    repo_id = connect_repo(world, monkeypatch)
+    from app.integrations.public_atlassian import parse_source
+
+    jira = integ.save_public_source(world["owner_p"].org_id, world["owner_p"].user_id,
+        {**parse_source("https://issues.example.org/jira/projects/AUTH"), "title": "Auth", "search_available": True, "access": "public"}, repo_id)
+    conf = integ.save_public_source(world["owner_p"].org_id, world["owner_p"].user_id,
+        {**parse_source("https://wiki.example.org/confluence/spaces/ENG"), "title": "Engineering", "search_available": True, "access": "public"}, repo_id)
+    calls = []
+
+    class PublicFake(FakeAtlassian):
+        def __init__(self, source):
+            super().__init__()
+            self.source, self.base = source, source["base_url"]
+
+        def jira_search(self, terms, keys=None, limit=5):
+            calls.append((self.source["kind"], keys))
+            return super().jira_search(terms, keys, limit)
+
+        def confluence_search(self, terms, limit=4, links=None):
+            calls.append((self.source["kind"], links))
+            return super().confluence_search(terms, limit)
+
+    monkeypatch.setattr(pipeline, "get_public_atlassian", PublicFake)
+    run = run_sync(world["member_p"], repo_id)
+    by = {a["id"]: a for a in run["agents"]}
+    assert run["status"] == "completed"
+    assert by["jira"]["findings"][0]["ref"] == "AUTH-311"
+    assert "must verify aud" in by["confluence"]["findings"][0]["detail"]
+    assert "Authentication architecture" in env["llm"].prompts[-1]
+    assert any("public Jira" in t["text"] for t in by["jira"]["tools"])
+    assert any("public Confluence" in t["text"] for t in by["confluence"]["tools"])
+    exact_link = "https://wiki.example.org/confluence/spaces/ENG/pages/42/Design"
+    pipeline.start_run(world["member_p"], kind="ask", question=f"Explain {exact_link}", repo_id=repo_id, memory_enabled=False, background=False)
+    assert any(aid == "confluence" and exact_link in links for aid, links in calls if isinstance(links, list))
+    calls.clear()
+    local = run_sync(world["member_p"], None)
+    assert {a["id"]: a for a in local["agents"]}["jira"]["status"] == "skipped"
+    assert calls == []
+    world["owner"].delete(f"/api/integrations/sources/{jira['_id']}")
+    world["owner"].delete(f"/api/integrations/sources/{conf['_id']}")
+    after = run_sync(world["member_p"], repo_id)
+    assert {a["id"]: a for a in after["agents"]}["confluence"]["status"] == "skipped"
+
+
+def test_broken_private_connection_does_not_hide_working_public_evidence(world, monkeypatch):
+    repo_id = connect_repo(world, monkeypatch)
+    connect_atlassian(world)
+    from app.integrations.public_atlassian import parse_source
+
+    integ.save_public_source(world["owner_p"].org_id, world["owner_p"].user_id,
+        {**parse_source("https://issues.example.org/jira/projects/AUTH"), "title": "Auth", "search_available": True, "access": "public"}, repo_id)
+
+    class PrivateBroken(FakeAtlassian):
+        def jira_search(self, *a, **k):
+            raise atl_mod.AtlassianError("Private token expired", 401)
+
+    class PublicWorking(FakeAtlassian):
+        def __init__(self, source):
+            super().__init__()
+            self.source, self.base = source, source["base_url"]
+
+    monkeypatch.setattr(atl_mod, "get_atlassian", lambda cfg, token: PrivateBroken())
+    monkeypatch.setattr(pipeline, "get_public_atlassian", PublicWorking)
+    run = run_sync(world["member_p"], repo_id)
+    jira = {a["id"]: a for a in run["agents"]}["jira"]
+    assert jira["status"] == "done" and jira["findings"][0]["ref"] == "AUTH-311"
+    assert any(t["status"] == "error" for t in jira["tools"])

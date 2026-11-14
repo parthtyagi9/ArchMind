@@ -175,12 +175,46 @@ interface AuditEvent {
 
 | Method | Path | Body | Returns | Needs |
 |---|---|---|---|---|
-| GET | `/integrations` | – | `{ github: { connected, login, oauth_configured }, atlassian: { connected, base_url, email, jira_projects: string[], confluence_spaces: string[], status: "ok"|"error"|null, error: string|null } }` | any |
+| GET | `/integrations` | – | `{ github: { connected, login, oauth_configured }, atlassian: { connected, base_url, email, jira_projects: string[], confluence_spaces: string[], status: "ok"|"error"|null, error: string|null, jira_available: boolean, confluence_available: boolean }, public_sources: PublicSource[] }` | any |
+| POST | `/integrations/sources` | `{ url, repo_id? }` | `PublicSource` after checking anonymous access. Detects Jira project/issue and Confluence space/page/share links. No credentials needed. Reconnecting the same canonical URL and repository updates the existing source. | `manage_integrations` |
+| DELETE | `/integrations/sources/{source_id}` | – | `{ ok: true }` (tenant-scoped; 404 for missing/foreign sources) | `manage_integrations` |
 | PUT | `/integrations/atlassian` | `{ base_url ("https://x.atlassian.net"), email, api_token, jira_projects?: string[], confluence_spaces?: string[] }` | same as GET `atlassian` (validates credentials against Jira and Confluence first; 502 with reason if invalid). The token is stored encrypted and never returned. | `manage_integrations` |
 | DELETE | `/integrations/atlassian` | – | `{ ok: true }` | `manage_integrations` |
 | DELETE | `/integrations/github` | – | `{ ok: true }` (unlinks the caller's GitHub token) | any |
 
-One Atlassian Cloud connection (site URL + email + API token) powers both Jira and Confluence.
+Public connections are the default onboarding flow: paste a link, optionally attach a repository, and connect.
+Jira and Confluence can live on separate hosts, including Apache's public installations. Their agents use
+anonymous REST search scoped to the detected Jira project or Confluence space. Exact attached issues/pages
+are fetched as evidence; Confluence links in questions/history are resolved only within a connected space.
+If an exact page is readable only as HTML, `search_available` is false and the UI labels it as page-only access.
+Private/login content and unreachable sources are not saved as successful connections. An upstream 401/403
+becomes 409 with a sign-in explanation (never a session-expired 401). Invalid links return 422, other upstream failures 502.
+
+```ts
+interface PublicSource {
+  id: string;
+  kind: "jira" | "confluence";
+  url: string;
+  base_url: string;
+  title: string;
+  repo_id: string | null;        // null = available for all runs in this org, including local workspaces
+  project: string | null;
+  space: string | null;
+  search_available: boolean;
+  access: "public";
+  created_at: string;
+}
+```
+
+Source storage is tenant-scoped. Repository attachments must belong to that tenant; only sources attached
+to the run's repository, any member repository of its group, or the whole org are used. Disconnect affects subsequent runs; existing evidence
+history is retained. Removing a repository also disconnects its attached public sources. Public documents
+remain evidence; proposing them as persistent memory still follows the existing human-approval rules.
+Anonymous requests allow only HTTPS public addresses, validate and pin resolved IPs, revalidate redirects,
+and bound response sizes. They send no stored integration credentials or cookies.
+
+The optional private connection remains available: one Atlassian Cloud connection (site URL + email + API token)
+powers both private Jira and Confluence agents. Public sources work alongside it without replacing its credentials.
 
 ## Repositories (`/api/repos`, `/api/github`)
 

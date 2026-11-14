@@ -27,6 +27,7 @@ from app.db import get_db, iso, new_id, utcnow
 from app.deps import Principal, require
 from app.integrations.atlassian import AtlassianError, clip
 from app.integrations.github import GitHubError, get_github_client
+from app.integrations.public_atlassian import get_public_atlassian
 from app.memory import governance, retrieval
 from app.memory import repository as mrepo
 from app.memory.context import MemoryContext
@@ -107,6 +108,7 @@ class Ctx:
     ticket_keys: list[str] = field(default_factory=list)
     keys_ready: threading.Event = field(default_factory=threading.Event)
     atlassian: Any = None  # (cfg, client) | None
+    public_sources: list[Any] = field(default_factory=list)
     memdocs: list[dict] = field(default_factory=list)
     findings_by_agent: dict[str, list[dict]] = field(default_factory=dict)
     group: dict | None = None
@@ -293,8 +295,8 @@ def github_agent(ctx: Ctx) -> list[dict]:
         ctx.keys_ready.set()  # Jira/Confluence agents wait for this to follow ticket references found in git history
 
 
-def jira_agent(ctx: Ctx) -> list[dict]:
-    cfg, atl = ctx.atlassian
+def _private_jira(ctx: Ctx) -> list[dict]:
+    _, atl = ctx.atlassian
     rec, out, seen = ctx.rec, [], set()
     own_keys = provenance.ticket_keys(ctx.question, ctx.selection["text"] if ctx.selection else None)
     terms = ctx.terms[:4]
@@ -314,8 +316,8 @@ def jira_agent(ctx: Ctx) -> list[dict]:
     return out
 
 
-def confluence_agent(ctx: Ctx) -> list[dict]:
-    cfg, atl = ctx.atlassian
+def _private_confluence(ctx: Ctx) -> list[dict]:
+    _, atl = ctx.atlassian
     rec, pages, seen = ctx.rec, [], set()
 
     def add(found: list[dict]) -> None:
@@ -342,6 +344,64 @@ def confluence_agent(ctx: Ctx) -> list[dict]:
             pass
         out.append(provenance.page_finding(pg, body))
     return out
+
+
+def _private_findings(ctx: Ctx, aid: str, fn: Callable[[Ctx], list[dict]], failures: list[str]) -> list[dict]:
+    if ctx.atlassian and ctx.atlassian[0].get(f"{aid}_ok", True):
+        try:
+            return fn(ctx)
+        except AtlassianError as e:
+            failures.append(str(e))
+    return []
+
+
+def jira_agent(ctx: Ctx) -> list[dict]:
+    failures: list[str] = []
+    out = _private_findings(ctx, "jira", _private_jira, failures)
+    ctx.keys_ready.wait(KEYS_WAIT_SECONDS)
+    keys = provenance.ticket_keys(ctx.question, ctx.selection["text"] if ctx.selection else None)
+    keys = list(dict.fromkeys(keys + ctx.ticket_keys))
+    for source in ctx.public_sources:
+        if source.source["kind"] != "jira":
+            continue
+        try:
+            with ctx.rec.tool("jira", f"search public Jira {source.source['project']} · {source.base}"):
+                out += [provenance.issue_finding(i) for i in source.jira_search(ctx.terms[:4], keys, limit=6)]
+        except AtlassianError as e:
+            failures.append(str(e))
+    if failures and not out:
+        raise AtlassianError("; ".join(failures))
+    return list({f["url"]: f for f in out}.values())
+
+
+def confluence_agent(ctx: Ctx) -> list[dict]:
+    failures: list[str] = []
+    out = _private_findings(ctx, "confluence", _private_confluence, failures)
+    ctx.keys_ready.wait(KEYS_WAIT_SECONDS)
+    # Fetch exact page links in the question/history before keyword discovery.
+    linked_text = " ".join([ctx.question] + [f.get("detail") or "" for f in ctx.findings_by_agent.get("github", [])])
+    links = [url.rstrip(".,;)>]}") for url in re.findall(r"https://[^\s<>\"']+", linked_text)]
+    for source in ctx.public_sources:
+        if source.source["kind"] != "confluence":
+            continue
+        try:
+            with ctx.rec.tool("confluence", f"search public Confluence {source.source.get('space') or 'page'} · {source.base}"):
+                found = source.confluence_search(ctx.terms[:4] + ctx.ticket_keys[:3], limit=4, links=links)
+            for pg in found:
+                body = pg.get("excerpt")
+                try:
+                    with ctx.rec.tool("confluence", f"read public page “{clip(pg['title'], 50)}”"):
+                        body = source.confluence_page_text(pg["id"])
+                except AtlassianError as e:
+                    failures.append(str(e))
+                    if not body:
+                        continue
+                out.append(provenance.page_finding(pg, body))
+        except AtlassianError as e:
+            failures.append(str(e))
+    if failures and not out:
+        raise AtlassianError("; ".join(failures))
+    return list({f["url"]: f for f in out}.values())
 
 
 def memory_agent(ctx: Ctx) -> list[dict]:
@@ -408,6 +468,7 @@ def gather(p: Principal, run_id: str) -> Ctx:
                 a, b = max(0, sel["start_line"] - 26), min(len(lines), sel["end_line"] + 25)
                 ctx.file_context = "\n".join(f"{i + 1}: {ln}" for i, ln in enumerate(lines[a:b], start=a))
     ctx.atlassian = integ.atlassian_client(p.org_id)
+    ctx.public_sources = [get_public_atlassian(s) for s in integ.public_sources(p.org_id, for_run=True, repo_ids=ctx.mctx.repo_ids)]
     cfg = ctx.atlassian[0] if ctx.atlassian else None
 
     plan: dict[str, Callable[[Ctx], list[dict]]] = {}
@@ -418,10 +479,10 @@ def gather(p: Principal, run_id: str) -> Ctx:
         skipped["github"] = "No repository is connected for this workspace, so there is no git history to search."
         ctx.keys_ready.set()
     for aid, fn, flag in (("jira", jira_agent, "jira_ok"), ("confluence", confluence_agent, "confluence_ok")):
-        if cfg and cfg.get(flag, True):
+        if (cfg and cfg.get(flag, True)) or any(s.source["kind"] == aid for s in ctx.public_sources):
             plan[aid] = fn
         else:
-            skipped[aid] = f"{aid.capitalize()} is not connected. Add Atlassian credentials in Settings → Integrations."
+            skipped[aid] = f"{aid.capitalize()} is not connected. Paste a public source link in Settings → Integrations, or connect a private Atlassian site."
     if run["memory_enabled"]:
         plan["memory"] = memory_agent
     else:
@@ -445,7 +506,7 @@ def _unique_evidence(ctx: Ctx) -> list[dict]:
             if ref in seen:
                 ref = f"{ref} ({aid})"
             seen.add(ref)
-            out.append({**f, "ref": ref})
+            out.append({**f, "ref": ref, "source_agent": aid})
     return out
 
 
@@ -460,8 +521,20 @@ def reason(ctx: Ctx, memory_enabled: bool) -> tuple[dict, str]:
     """One reasoning pass over the shared evidence. Returns (Answer, model name)."""
     evidence = _unique_evidence(ctx)
     memories = [_memory_view(d) for d in ctx.memdocs] if memory_enabled else []
+    # Connection/retrieval status is operational evidence. Without it the model
+    # can mistake externally fetched issues for references found in repo files.
+    latest = get_db().agent_runs.find_one({"_id": ctx.run["_id"], "tenant_id": ctx.p.org_id}, {"agents": 1}) or ctx.run
+    runtime = {"assistant": "ArchMind", "repository_under_analysis": ctx.run.get("repo_name"),
+               "repositories_under_analysis": list(ctx.mctx.repo_names.values()), "sources": []}
+    for aid in ("github", "jira", "confluence"):
+        agent = latest["agents"][aid]
+        runtime["sources"].append({"source": aid, "status": agent["status"], "findings_retrieved": len(agent["findings"]),
+                                   "completed_tool_calls": sum(t["status"] == "done" for t in agent["tools"]),
+                                   "failed_tool_calls": sum(t["status"] == "error" for t in agent["tools"]),
+                                   "skip_reason": agent["summary"] if agent["status"] == "skipped" else None})
     prompt = prompts.reasoning_prompt(kind=ctx.kind, question=ctx.question, selection=ctx.selection, file_context=ctx.file_context,
-                                      components=ctx.components, evidence=evidence, memories=memories, memory_enabled=memory_enabled)
+                                      components=ctx.components, evidence=evidence, memories=memories, memory_enabled=memory_enabled,
+                                      runtime_context=runtime)
     llm = get_llm()
     raw = llm.structured(prompts.SYSTEM, prompt, LLMAnswer)
     return sanitize(raw, evidence={e["ref"] for e in evidence}, memory_refs={m["memory_ref"] for m in memories},

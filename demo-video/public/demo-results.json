@@ -1,0 +1,43 @@
+{
+  "question": "For a local development Kafka producer, can I set retries=0 and enable.idempotence=false to fail fast?",
+  "policy": "Illustrative demo-team policy",
+  "capturedAt": "2026-11-14T20:46:01.044Z",
+  "run": {
+    "id": "run_4ad7a5e371e7",
+    "verdict": "proceed",
+    "sources": [
+      {
+        "id": "github",
+        "status": "done",
+        "findings": 10
+      },
+      {
+        "id": "jira",
+        "status": "done",
+        "findings": 6
+      },
+      {
+        "id": "confluence",
+        "status": "done",
+        "findings": 4
+      },
+      {
+        "id": "memory",
+        "status": "done",
+        "findings": 0
+      }
+    ]
+  },
+  "comparison": {
+    "id": "cmp_67840af45a3a",
+    "changed": true,
+    "without": "insufficient_evidence",
+    "with": "proceed_with_constraints",
+    "withoutRecommendation": "Consult the official Apache Kafka producer configuration documentation regarding `retries` and `enable.idempotence` interactions.",
+    "withRecommendation": "Keep retries enabled and enable.idempotence=true, using delivery.timeout.ms and request.timeout.ms to bound waiting times instead of failing fast via retries=0.",
+    "constraints": [
+      "For this demonstration workspace, all producer configurations, including local development, must keep retries enabled and enable.idempotence=true. Do not set retries=0 or disable idempotence to fail fast. Use delivery.timeout.ms and request.timeout.ms to bound waiting instead. Any exception needs platform architecture review before proceeding."
+    ]
+  },
+  "errors": []
+}

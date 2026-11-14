@@ -1,5 +1,5 @@
 "use client";
-import { Brain, Code2, PanelRightClose, Send, Sparkles, X } from "lucide-react";
+import { Brain, Code2, Link2, PanelRightClose, Send, Sparkles, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useApp } from "@/components/AppState";
 import { SubmitState, ThreadEntry, type ThreadItem } from "@/components/ide/ThreadEntry";
@@ -15,7 +15,7 @@ const nextKey = () => `q${Date.now()}_${++keySeq}`;
 const fromRun = (r: Run): ThreadItem => ({ key: r.id, question: r.question, selection: r.selection, runId: r.id, run: r, submitError: null });
 
 export function ChatPanel() {
-  const { setChatOpen, workspace, repo, group, groupMembers, memoryOn, setMemoryOn, pendingSelection, setPendingSelection, askRequest, can, me, openPage } = useApp();
+  const { setChatOpen, workspace, repo, group, groupMembers, memoryOn, setMemoryOn, pendingSelection, setPendingSelection, askRequest, can, me, openPage, integrations, refreshIntegrations } = useApp();
   const repoId = workspace?.kind === "repo" ? workspace.repoId : null;
   const groupId = workspace?.kind === "group" ? workspace.groupId : null;
   const isLocal = workspace?.kind === "local";
@@ -25,6 +25,16 @@ export function ChatPanel() {
   const [text, setText] = useState("");
   const bottom = useRef<HTMLDivElement>(null);
   const canAsk = can("ask");
+  const sources = integrations?.public_sources.filter((s) => !s.repo_id || s.repo_id === repoId || (groupId !== null && groupMembers.some((r) => r.id === s.repo_id))) ?? [];
+  const sourceConnected = (kind: "jira" | "confluence") => sources.some((s) => s.kind === kind)
+    || !!(integrations?.atlassian.connected && integrations.atlassian[`${kind}_available`]);
+
+  useEffect(() => {
+    void refreshIntegrations();
+    const refresh = () => void refreshIntegrations();
+    window.addEventListener("focus", refresh);
+    return () => window.removeEventListener("focus", refresh);
+  }, [refreshIntegrations]);
 
   // Prior runs for this repository (or group), so the thread persists across reloads.
   const history = useAsync(() => api.runs(groupId ? { group_id: groupId, limit: 30 } : { repo_id: repoId ?? undefined, limit: 30 }), [repoId, groupId], repoId !== null || groupId !== null);
@@ -100,6 +110,14 @@ export function ChatPanel() {
           : <>Memory is off: answers ignore every organizational decision and rule. Use this to see the agent's unconstrained answer.</>}
       </div>
 
+      {integrations && <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line px-3 py-1.5 text-[11px]" aria-label="Sources for this workspace">
+        {(["jira", "confluence"] as const).map((kind) => <button key={kind} onClick={() => openPage("settings")}
+          title="Manage sources for this workspace in Settings → Integrations" className={sourceConnected(kind) ? "text-ok hover:underline" : "text-muted hover:text-brand hover:underline"}>
+          {kind === "jira" ? "Jira" : "Confluence"} {sourceConnected(kind) ? "connected" : "not connected"}
+        </button>)}
+        {can("manage_integrations") && (!sourceConnected("jira") || !sourceConnected("confluence")) && <button onClick={() => openPage("settings")} className="ml-auto text-brand hover:underline">Connect</button>}
+      </div>}
+
       {isLocal && <InfoBanner tone="info" className="m-3 mb-0">Local files: GitHub provenance unavailable. The GitHub agent will report itself skipped; Jira, Confluence and Memory still run.</InfoBanner>}
       {group && groupMembers.some((r) => r.status !== "ready") && <InfoBanner className="m-3 mb-0">Some repositories in this group are not indexed yet. Answers search only the indexed ones.</InfoBanner>}
       {repo && repo.status !== "ready" && <InfoBanner className="m-3 mb-0">This repository is {repo.status === "indexing" ? "still indexing" : "not indexed"}. Answers will have less evidence until indexing finishes.</InfoBanner>}
@@ -129,6 +147,8 @@ export function ChatPanel() {
                 </div>
               </div>
             )}
+            {can("manage_integrations") && <button onClick={() => openPage("settings")} className="inline-flex items-center gap-1.5 text-brand hover:underline"><Link2 className="h-3.5 w-3.5" />Connect Jira or Confluence context</button>}
+
           </div>
         )}
 

@@ -306,10 +306,27 @@ export interface AtlassianInfo {
   confluence_spaces: string[];
   status: "ok" | "error" | null;
   error: string | null;
+  jira_available: boolean;
+  confluence_available: boolean;
 }
 export interface Integrations {
   github: { connected: boolean; login: string | null; oauth_configured: boolean };
   atlassian: AtlassianInfo;
+  public_sources: PublicSource[];
+}
+
+export interface PublicSource {
+  id: string;
+  kind: "jira" | "confluence";
+  url: string;
+  base_url: string;
+  title: string;
+  repo_id: string | null;
+  project: string | null;
+  space: string | null;
+  search_available: boolean;
+  access: "public";
+  created_at: string;
 }
 
 export interface GithubRepoItem { full_name: string; private: boolean; default_branch: string; description: string | null; updated_at: string }

@@ -1,8 +1,8 @@
 "use client";
-import { CheckCircle2, XCircle } from "lucide-react";
+import { CheckCircle2, Link2, XCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useApp } from "@/components/AppState";
-import { Badge, Button, Card, CardHeader, ErrorBanner, Field, GithubMark, InfoBanner, Spinner, inputCls } from "@/components/ui";
+import { Badge, Button, Card, CardHeader, ErrorBanner, ExtLink, Field, GithubMark, InfoBanner, Spinner, inputCls } from "@/components/ui";
 import { api, errorMessage } from "@/lib/api";
 import type { AtlassianInfo } from "@/lib/types";
 
@@ -11,14 +11,88 @@ const splitList = (s: string) => s.split(",").map((x) => x.trim()).filter(Boolea
 export function IntegrationsPanel() {
   const { integrations, refreshIntegrations, can } = useApp();
   const [loaded, setLoaded] = useState(false);
+  const [privateOpen, setPrivateOpen] = useState(false);
   useEffect(() => { void refreshIntegrations().finally(() => setLoaded(true)); }, [refreshIntegrations]);
 
   if (!integrations) return loaded ? <ErrorBanner error="Could not load integrations." onRetry={() => void refreshIntegrations()} /> : <div className="flex justify-center py-10"><Spinner /></div>;
   return (
     <div className="space-y-4">
+      <PublicSourcesCard />
       <GithubCard />
-      <AtlassianCard info={integrations.atlassian} canManage={can("manage_integrations")} />
+      {integrations.atlassian.connected || privateOpen
+        ? <AtlassianCard info={integrations.atlassian} canManage={can("manage_integrations")} />
+        : <button onClick={() => setPrivateOpen(true)} className="text-xs text-brand hover:underline">Source needs sign-in? Connect a private Atlassian Cloud site</button>}
     </div>
+  );
+}
+
+function PublicSourcesCard() {
+  const { integrations, refreshIntegrations, can, repos, repo } = useApp();
+  const [url, setUrl] = useState("");
+  const [repoId, setRepoId] = useState(repo?.id ?? "");
+  const [busy, setBusy] = useState(false);
+  const [removing, setRemoving] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [connected, setConnected] = useState<string | null>(null);
+  const canManage = can("manage_integrations");
+  const sources = integrations?.public_sources ?? [];
+
+  const connect = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true); setError(null); setConnected(null);
+    try {
+      const source = await api.connectPublicSource({ url: url.trim(), ...(repoId ? { repo_id: repoId } : {}) });
+      await refreshIntegrations();
+      setUrl("");
+      setConnected(`${source.title} connected. ${source.search_available ? "Agents can search this source and cite its content." : "Agents can read this page; this site does not expose public search."}`);
+    } catch (err) { setError(errorMessage(err)); }
+    finally { setBusy(false); }
+  };
+
+  const remove = async (id: string) => {
+    setRemoving(id); setError(null); setConnected(null);
+    try { await api.disconnectPublicSource(id); await refreshIntegrations(); }
+    catch (err) { setError(errorMessage(err)); }
+    finally { setRemoving(null); }
+  };
+
+  return (
+    <Card>
+      <CardHeader title="Jira & Confluence context" sub="Paste a public project, space, issue or page link. No account or API token needed." icon={<Link2 className="h-4 w-4" />} />
+      <div className="space-y-4 p-4">
+        <form onSubmit={(e) => void connect(e)} className="space-y-3">
+          <Field label="Source link">
+            <input type="url" className={inputCls} placeholder="https://issues.apache.org/jira/projects/KAFKA" value={url} onChange={(e) => { setUrl(e.target.value); setConnected(null); }} required disabled={!canManage || busy} />
+          </Field>
+          <Field label="Use for" hint="Agents use this source only for the selected repository, or across your organization.">
+            <select className={inputCls} value={repoId} onChange={(e) => setRepoId(e.target.value)} disabled={!canManage || busy}>
+              <option value="">All repositories in this organization</option>
+              {repos.map((r) => <option key={r.id} value={r.id}>{r.full_name}</option>)}
+            </select>
+          </Field>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="submit" size="sm" disabled={!canManage || busy || !url.trim()}>{busy ? <Spinner className="h-3.5 w-3.5 text-[#0a0b10]" /> : <Link2 className="h-3.5 w-3.5" />}{busy ? "Checking public access…" : "Connect source"}</Button>
+            {!canManage && <span className="text-[11px] text-muted">An admin or owner can connect sources.</span>}
+          </div>
+          {canManage && <p className="text-[11px] text-muted">Try Apache Kafka:{" "}
+            <button type="button" className="text-brand hover:underline" disabled={busy} onClick={() => setUrl("https://issues.apache.org/jira/projects/KAFKA")}>Jira</button>{" · "}
+            <button type="button" className="text-brand hover:underline" disabled={busy} onClick={() => setUrl("https://cwiki.apache.org/confluence/display/KAFKA/Index")}>Confluence</button>
+          </p>}
+        </form>
+        {error && <ErrorBanner error={error} />}
+        {connected && <InfoBanner tone="ok">{connected}</InfoBanner>}
+        {sources.length > 0 && <ul className="space-y-2 border-t border-line pt-3">
+          {sources.map((s) => (
+            <li key={s.id} className="rounded-lg border border-line bg-panel-2 p-3 text-xs">
+              <div className="flex flex-wrap items-center gap-2"><span className="min-w-0 flex-1 break-words font-medium">{s.title}</span><Badge tone="info">{s.kind === "jira" ? "Jira" : "Confluence"}</Badge><Badge tone="ok">Public access</Badge></div>
+              <div className="mt-1 break-all"><ExtLink href={s.url}>{s.url}</ExtLink></div>
+              <p className="mt-1 text-[11px] text-muted">{s.repo_id ? repos.find((r) => r.id === s.repo_id)?.full_name ?? "Repository" : "All repositories"} · {s.search_available ? "Search and read" : "Read this page only"}</p>
+              {canManage && <Button size="sm" variant="ghost" className="mt-1" disabled={removing !== null} onClick={() => void remove(s.id)}>{removing === s.id && <Spinner className="h-3 w-3" />}Disconnect</Button>}
+            </li>
+          ))}
+        </ul>}
+      </div>
+    </Card>
   );
 }
 
@@ -92,7 +166,7 @@ function AtlassianCard({ info, canManage }: { info: AtlassianInfo; canManage: bo
 
   return (
     <Card>
-      <CardHeader title="Atlassian (Jira and Confluence)" sub="One Atlassian Cloud connection powers both agents"
+      <CardHeader title="Private Atlassian Cloud" sub="For sources that require sign-in; credentials are stored encrypted"
         right={info.connected
           ? <Badge tone={info.status === "ok" ? "ok" : "bad"}>{info.status === "ok" ? <CheckCircle2 className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}{info.status ?? "connected"}</Badge>
           : <Badge>not connected</Badge>} />

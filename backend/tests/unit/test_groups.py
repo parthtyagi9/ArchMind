@@ -247,6 +247,33 @@ def test_agent_searches_code_across_every_repo_of_the_group_and_proposes_group_m
     assert proposed["scope"] == "group" and proposed["group_id"] == g["id"] and proposed["status"] == "pending"
 
 
+def test_group_agents_use_public_sources_of_member_repositories_only(world, monkeypatch):
+    from app.integrations.public_atlassian import parse_source
+    from app.services import integrations
+
+    g = make_group(world, "acme/notes-web", "acme/notes-api")
+    p = world["owner_p"]
+    for name, project in (("acme/notes-web", "WEB"), ("acme/notes-api", "API"), ("acme/other", "OTHER")):
+        source = {**parse_source(f"https://issues.example.org/projects/{project}"), "title": project, "access": "public", "search_available": True}
+        integrations.save_public_source(p.org_id, p.user_id, source, world["ids"][name])
+    queried = []
+
+    class PublicJira:
+        def __init__(self, source):
+            self.source, self.base = source, source["base_url"]
+
+        def jira_search(self, *a, **k):
+            project = self.source["project"]
+            queried.append(project)
+            return [{"key": f"{project}-1", "summary": "Notes decision", "description": "Use the notes API", "url": f"{self.base}/browse/{project}-1"}]
+
+    monkeypatch.setattr(pipeline, "get_public_atlassian", PublicJira)
+    rid = pipeline.start_run(world["member_p"], kind="ask", question="How are notes deleted?", group_id=g["id"], memory_enabled=False, background=False)
+    run = get_db().agent_runs.find_one({"_id": rid})
+    assert run["status"] == "completed" and set(queried) == {"WEB", "API"}
+    assert {f["ref"] for f in run["agents"]["jira"]["findings"]} == {"WEB-1", "API-1"}
+
+
 def test_a_selection_in_a_group_must_name_a_member_repo(world):
     g = make_group(world, "acme/notes-web")
     sel = {"path": "src/lib/api.ts", "start_line": 3, "end_line": 3, "text": "fetch"}

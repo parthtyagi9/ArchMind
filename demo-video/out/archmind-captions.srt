@@ -1,0 +1,31 @@
+1
+00:00:00,000 --> 00:00:05,000
+Code tells you what happens. ArchMind uncovers why, and remembers the rules.
+
+2
+00:00:05,000 --> 00:00:12,000
+Connect a repository and paste public Jira and Confluence links. No API tokens for public sources.
+
+3
+00:00:12,000 --> 00:00:21,000
+Select code and ask why. GitHub, Jira, Confluence, and Memory agents gather evidence in parallel.
+
+4
+00:00:21,000 --> 00:00:28,000
+Get concrete guidance, with each agent's retrieved evidence available to inspect.
+
+5
+00:00:28,000 --> 00:00:36,000
+Knowledge starts as a proposal. A human approves its scope, provenance, and expiry.
+
+6
+00:00:36,000 --> 00:00:48,000
+Then ask the same question with and without memory. Shared evidence makes the difference visible. Here, an approved demo policy adds organizational constraints to the guidance.
+
+7
+00:00:48,000 --> 00:00:55,000
+Atlas filters memory by tenant, scope, status, and expiry. Correct it, or revoke it from retrieval.
+
+8
+00:00:55,000 --> 00:01:00,000
+ArchMind. Understand the decision. Govern what your agent remembers.
