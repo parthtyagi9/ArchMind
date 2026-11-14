@@ -1,7 +1,7 @@
 // Small typed fetch client for the ArchMind API. All paths are relative to /api (proxied to FastAPI).
 import type {
   AuditEvent, Compare, ComponentDetail, Graph, GithubRepos, Integrations, AtlassianInfo, Invite, Me, Memory,
-  OrgMember, Repo, RepoFile, Run, SearchResponse, Selection, SourceRef, TreeFile, Role, MemoryType, Scope,
+  OrgMember, Repo, RepoFile, Run, SearchResponse, Selection, SourceRef, TreeFile, Role, MemoryType, Scope, PublicSource,
 } from "@/lib/types";
 
 export class ApiError extends Error {
@@ -134,6 +134,8 @@ export const api = {
 
   // integrations
   integrations: () => get<Integrations>("/integrations"),
+  connectPublicSource: (b: { url: string; repo_id?: string }) => post<PublicSource>("/integrations/sources", b),
+  disconnectPublicSource: (id: string) => del<{ ok: boolean }>(`/integrations/sources/${enc(id)}`),
   putAtlassian: (b: AtlassianBody) => put<AtlassianInfo>("/integrations/atlassian", b),
   deleteAtlassian: () => del<{ ok: boolean }>("/integrations/atlassian"),
   deleteGithub: () => del<{ ok: boolean }>("/integrations/github"),

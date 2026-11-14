@@ -318,3 +318,73 @@ def test_startup_recovery_marks_interrupted_work_failed(world, env):
     assert env["db"].repos.find_one({"_id": "repo_stuck"})["status"] == "failed"
     assert "restart" in env["db"].repos.find_one({"_id": "repo_stuck"})["error"]
     assert env["db"].agent_runs.find_one({"_id": "run_stuck"})["status"] == "failed"
+
+
+def test_public_sources_feed_agents_without_credentials_and_only_for_attached_repo(world, monkeypatch, env):
+    repo_id = connect_repo(world, monkeypatch)
+    from app.integrations.public_atlassian import parse_source
+
+    jira = integ.save_public_source(world["owner_p"].org_id, world["owner_p"].user_id,
+        {**parse_source("https://issues.example.org/jira/projects/AUTH"), "title": "Auth", "search_available": True, "access": "public"}, repo_id)
+    conf = integ.save_public_source(world["owner_p"].org_id, world["owner_p"].user_id,
+        {**parse_source("https://wiki.example.org/confluence/spaces/ENG"), "title": "Engineering", "search_available": True, "access": "public"}, repo_id)
+    calls = []
+
+    class PublicFake(FakeAtlassian):
+        def __init__(self, source):
+            super().__init__()
+            self.source, self.base = source, source["base_url"]
+
+        def jira_search(self, terms, keys=None, limit=5):
+            calls.append((self.source["kind"], keys))
+            return super().jira_search(terms, keys, limit)
+
+        def confluence_search(self, terms, limit=4, links=None):
+            calls.append((self.source["kind"], links))
+            return super().confluence_search(terms, limit)
+
+    monkeypatch.setattr(pipeline, "get_public_atlassian", PublicFake)
+    run = run_sync(world["member_p"], repo_id)
+    by = {a["id"]: a for a in run["agents"]}
+    assert run["status"] == "completed"
+    assert by["jira"]["findings"][0]["ref"] == "AUTH-311"
+    assert "must verify aud" in by["confluence"]["findings"][0]["detail"]
+    assert "Authentication architecture" in env["llm"].prompts[-1]
+    assert any("public Jira" in t["text"] for t in by["jira"]["tools"])
+    assert any("public Confluence" in t["text"] for t in by["confluence"]["tools"])
+    exact_link = "https://wiki.example.org/confluence/spaces/ENG/pages/42/Design"
+    pipeline.start_run(world["member_p"], kind="ask", question=f"Explain {exact_link}", repo_id=repo_id, memory_enabled=False, background=False)
+    assert any(aid == "confluence" and exact_link in links for aid, links in calls if isinstance(links, list))
+    calls.clear()
+    local = run_sync(world["member_p"], None)
+    assert {a["id"]: a for a in local["agents"]}["jira"]["status"] == "skipped"
+    assert calls == []
+    world["owner"].delete(f"/api/integrations/sources/{jira['_id']}")
+    world["owner"].delete(f"/api/integrations/sources/{conf['_id']}")
+    after = run_sync(world["member_p"], repo_id)
+    assert {a["id"]: a for a in after["agents"]}["confluence"]["status"] == "skipped"
+
+
+def test_broken_private_connection_does_not_hide_working_public_evidence(world, monkeypatch):
+    repo_id = connect_repo(world, monkeypatch)
+    connect_atlassian(world)
+    from app.integrations.public_atlassian import parse_source
+
+    integ.save_public_source(world["owner_p"].org_id, world["owner_p"].user_id,
+        {**parse_source("https://issues.example.org/jira/projects/AUTH"), "title": "Auth", "search_available": True, "access": "public"}, repo_id)
+
+    class PrivateBroken(FakeAtlassian):
+        def jira_search(self, *a, **k):
+            raise atl_mod.AtlassianError("Private token expired", 401)
+
+    class PublicWorking(FakeAtlassian):
+        def __init__(self, source):
+            super().__init__()
+            self.source, self.base = source, source["base_url"]
+
+    monkeypatch.setattr(atl_mod, "get_atlassian", lambda cfg, token: PrivateBroken())
+    monkeypatch.setattr(pipeline, "get_public_atlassian", PublicWorking)
+    run = run_sync(world["member_p"], repo_id)
+    jira = {a["id"]: a for a in run["agents"]}["jira"]
+    assert jira["status"] == "done" and jira["findings"][0]["ref"] == "AUTH-311"
+    assert any(t["status"] == "error" for t in jira["tools"])

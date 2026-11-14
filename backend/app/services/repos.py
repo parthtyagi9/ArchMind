@@ -169,6 +169,7 @@ def delete_repo(p: Principal, repo_id: str) -> None:
     db = get_db()
     db.source_documents.delete_many({"repo_id": repo_id})
     db.repo_graphs.delete_one({"_id": repo_id})
+    db.integrations.delete_many({"org_id": p.org_id, "repo_id": repo_id, "type": "public_atlassian"})
     db.repos.delete_one({"_id": repo_id})
     audit.record("repo.removed", p, details={"repo": repo["full_name"]})
 

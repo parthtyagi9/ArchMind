@@ -1,7 +1,7 @@
 """Stored integration credentials. Secrets are encrypted at rest and never returned by the API."""
 from __future__ import annotations
 
-from app.db import get_db, utcnow
+from app.db import get_db, iso, utcnow
 from app.integrations import atlassian as atl
 from app.integrations.atlassian import Atlassian
 from app.security import decrypt
@@ -49,3 +49,29 @@ def save_atlassian(org_id: str, user_id: str, *, base_url: str, email: str, toke
                   "jira_projects": jira_projects, "confluence_spaces": confluence_spaces, "status": "ok", "error": None,
                   "jira_ok": products["jira"], "confluence_ok": products["confluence"], "updated_by": user_id, "updated_at": utcnow()}},
         upsert=True)
+
+
+def public_sources(org_id: str, repo_id: str | None = None, *, for_run: bool = False) -> list[dict]:
+    q: dict = {"org_id": org_id, "type": "public_atlassian"}
+    if for_run:
+        q["repo_id"] = {"$in": [None, repo_id]} if repo_id else None
+    return list(get_db().integrations.find(q).sort("created_at", 1))
+
+
+def public_source_api(source: dict) -> dict:
+    fields = ("kind", "url", "base_url", "title", "repo_id", "project", "space", "search_available", "access")
+    return {"id": source["_id"], **{key: source.get(key) for key in fields}, "created_at": iso(source["created_at"])}
+
+
+def save_public_source(org_id: str, user_id: str, source: dict, repo_id: str | None) -> dict:
+    db = get_db()
+    # Canonical URL + attachment identifies a connection. Updating it re-checks access.
+    import hashlib
+
+    sid = "src_" + hashlib.sha256(f"{org_id}|{repo_id}|{source['url']}".encode()).hexdigest()[:24]
+    now = utcnow()
+    db.integrations.update_one({"_id": sid, "org_id": org_id}, {
+        "$set": {**source, "type": "public_atlassian", "org_id": org_id, "repo_id": repo_id, "updated_by": user_id, "updated_at": now},
+        "$setOnInsert": {"created_at": now},
+    }, upsert=True)
+    return db.integrations.find_one({"_id": sid, "org_id": org_id})

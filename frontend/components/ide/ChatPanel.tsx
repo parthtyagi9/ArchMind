@@ -1,5 +1,5 @@
 "use client";
-import { Brain, Send, Sparkles, X } from "lucide-react";
+import { Brain, Link2, Send, Sparkles, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useApp } from "@/components/AppState";
 import { SubmitState, ThreadEntry, type ThreadItem } from "@/components/ide/ThreadEntry";
@@ -14,7 +14,7 @@ const nextKey = () => `q${Date.now()}_${++keySeq}`;
 const fromRun = (r: Run): ThreadItem => ({ key: r.id, question: r.question, selection: r.selection, runId: r.id, run: r, submitError: null });
 
 export function ChatPanel() {
-  const { workspace, repo, memoryOn, setMemoryOn, pendingSelection, setPendingSelection, askRequest, can, me } = useApp();
+  const { workspace, repo, memoryOn, setMemoryOn, pendingSelection, setPendingSelection, askRequest, can, me, openPage } = useApp();
   const repoId = workspace?.kind === "repo" ? workspace.repoId : null;
   const isLocal = workspace?.kind === "local";
   const [items, setItems] = useState<ThreadItem[]>([]);
@@ -99,6 +99,7 @@ export function ChatPanel() {
             <p className="text-sm text-fg">Ask why anything exists</p>
             <p className="leading-relaxed">Select code in the editor and choose <span className="text-brand">Why does this exist?</span>. ArchMind deploys GitHub, Jira, Confluence and Memory sub-agents, then answers with cited evidence and a guidance verdict.</p>
             <p className="leading-relaxed">You can also type a question about the architecture below.</p>
+            {can("manage_integrations") && <button onClick={() => openPage("settings")} className="inline-flex items-center gap-1.5 text-brand hover:underline"><Link2 className="h-3.5 w-3.5" />Connect Jira or Confluence context</button>}
           </div>
         )}
 
