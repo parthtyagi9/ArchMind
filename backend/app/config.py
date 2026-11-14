@@ -22,9 +22,9 @@ class Settings(BaseSettings):
     # Reasoning LLM (structured output). Fallbacks are tried on overload (503), rate limit (429) or unknown model (404).
     gemini_api_key: str = ""
     llm_provider: str = "gemini"
-    llm_model: str = "gemini-3.5-flash"
+    llm_model: str = "gemini-3.5-flash-lite"
     llm_temperature: float = 0.0
-    llm_fallback_models: str = "gemini-3.8-flash,gemini-3.5-flash-lite,gemini-3.6-flash"
+    llm_fallback_models: str = "gemini-3.5-flash,gemini-3.8-flash,gemini-3.6-flash"
     llm_timeout_ms: int = 45000
 
     # "atlas" uses $vectorSearch. "local" is an exact cosine scan used ONLY by unit tests
