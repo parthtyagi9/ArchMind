@@ -34,5 +34,5 @@ export function StatusBadge({ status }: { status: MemoryStatus }) {
   return <Badge tone={STATUS_TONE[status]}>{STATUS_LABEL[status]}</Badge>;
 }
 
-export const scopeLabel = (m: Pick<Memory, "scope" | "team" | "repo_name">) =>
-  m.scope === "team" ? `team: ${m.team ?? "—"}` : m.scope === "repo" ? `repo: ${m.repo_name ?? "—"}` : "organization";
+export const scopeLabel = (m: Pick<Memory, "scope" | "team" | "repo_name"> & { group_name?: string | null }) =>
+  m.scope === "team" ? `team: ${m.team ?? "—"}` : m.scope === "repo" ? `repo: ${m.repo_name ?? "—"}` : m.scope === "group" ? `group: ${m.group_name ?? "—"}` : "organization";

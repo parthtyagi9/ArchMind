@@ -6,6 +6,7 @@ import { FileTree } from "@/components/ide/FileTree";
 import { Badge, Skeleton, ErrorBanner, cn } from "@/components/ui";
 import { KIND_COLOR } from "@/components/views/ArchGraph";
 import { readFolder } from "@/lib/localFiles";
+import { useGroupGraph } from "@/lib/groupData";
 import { useRepoGraph } from "@/lib/repoData";
 import type { PageId } from "@/lib/types";
 
@@ -20,7 +21,7 @@ const GOV_PAGES: { page: PageId; label: string }[] = [
 const TITLES: Record<SidebarPanel, string> = { files: "Explorer", arch: "Architecture", gov: "Governance" };
 
 export function Sidebar() {
-  const { sidebar, workspace, repo, openLocal } = useApp();
+  const { sidebar, workspace, repo, group, openLocal } = useApp();
   const folderRef = useRef<HTMLInputElement>(null);
 
   const swapFolder = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -42,7 +43,7 @@ export function Sidebar() {
       <div className="min-h-0 flex-1 overflow-y-auto">
         {sidebar === "files" && (
           <>
-            <div className="truncate px-3 pb-1 font-mono text-[11px] text-fg">{workspace?.kind === "local" ? workspace.name : repo?.full_name}</div>
+            <div className="truncate px-3 pb-1 font-mono text-[11px] text-fg">{workspace?.kind === "local" ? workspace.name : workspace?.kind === "group" ? group?.name : repo?.full_name}</div>
             <FileTree />
           </>
         )}
@@ -69,6 +70,42 @@ function GovSide() {
 }
 
 function ArchSide() {
+  const { workspace } = useApp();
+  return workspace?.kind === "group" ? <GroupArchSide /> : <RepoArchSide />;
+}
+
+function GroupArchSide() {
+  const { group, groupMembers, openArch, setSelectedNode, selectedNode } = useApp();
+  const graph = useGroupGraph(group, groupMembers);
+  const byRepo = useMemo(() => {
+    const m = new Map<string, NonNullable<typeof graph.data>["nodes"]>();
+    for (const n of graph.data?.nodes ?? []) m.set(n.repo_name ?? "", [...(m.get(n.repo_name ?? "") ?? []), n]);
+    return Array.from(m.entries()).map(([name, ns]) => [name, ns.sort((a, b) => a.label.localeCompare(b.label))] as const);
+  }, [graph.data]);
+  if (!group) return null;
+  if (graph.loading && !graph.data) return <div className="space-y-1.5 px-3 py-2">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-4" />)}</div>;
+  if (graph.error != null) return <div className="p-2"><ErrorBanner error={graph.error} onRetry={graph.reload} /></div>;
+  if (byRepo.length === 0) return <p className="px-3 py-2 text-xs leading-relaxed text-muted">No components yet. They appear once member repositories finish indexing.</p>;
+  const cross = graph.data?.stats.cross_repo_edges ?? 0;
+  return (
+    <div className="px-2 py-1">
+      <button onClick={openArch} className="mb-1 w-full rounded-md px-2 py-1 text-left text-[11px] text-brand hover:bg-line/40">Open group map · {cross} cross-repo link{cross === 1 ? "" : "s"}</button>
+      {byRepo.map(([name, ns]) => (
+        <div key={name} className="mb-1.5">
+          <div className="truncate px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-muted" title={name}>{name}</div>
+          {ns.map((n) => (
+            <button key={n.id} onClick={() => { setSelectedNode(n.id); openArch(); }} className={cn("flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12.5px] hover:bg-line/40", selectedNode === n.id ? "bg-brand-soft text-fg" : "text-muted")}>
+              <span className="h-2 w-2 shrink-0 rounded-sm" style={{ background: KIND_COLOR[n.kind] }} /><span className="truncate">{n.label}</span>
+              {n.memory_count > 0 && <span className="ml-auto text-[10px] text-brand">◆{n.memory_count}</span>}
+            </button>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function RepoArchSide() {
   const { workspace, repo, openArch, setSelectedNode, selectedNode } = useApp();
   const graph = useRepoGraph(repo);
   const nodes = useMemo(() => (graph.data ? [...graph.data.nodes].sort((a, b) => a.label.localeCompare(b.label)) : []), [graph.data]);

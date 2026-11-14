@@ -16,7 +16,7 @@ const FILTER_LABEL: Record<string, string> = { invalidated: "revoked" };
 interface Row { memory: Memory; score?: number }
 
 export function MemoryView() {
-  const { focusMemoryId, clearFocusMemory, can, repos } = useApp();
+  const { focusMemoryId, clearFocusMemory, can, repos, groups } = useApp();
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("all");
   const [input, setInput] = useState("");
   const [query, setQuery] = useState("");
@@ -24,8 +24,10 @@ export function MemoryView() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
-  const list = useAsync(() => api.memories(repoFilter ? { repo_id: repoFilter } : {}), [repoFilter]);
-  const search = useAsync(() => api.searchMemories(query, repoFilter || undefined), [query, repoFilter], query !== "");
+  // the filter value is "repo:<id>", "group:<id>" or "" (everything); it sets the workspace context for listing and search
+  const ctx = repoFilter.startsWith("group:") ? { group_id: repoFilter.slice(6) } : repoFilter.startsWith("repo:") ? { repo_id: repoFilter.slice(5) } : {};
+  const list = useAsync(() => api.memories(ctx), [repoFilter]);
+  const search = useAsync(() => api.searchMemories(query, ctx), [query, repoFilter], query !== "");
 
   useEffect(() => {
     if (!focusMemoryId) return;
@@ -60,9 +62,10 @@ export function MemoryView() {
               <input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Semantic search, press Enter (governed vector search as you)" aria-label="Search memories" className={cn(inputCls, "pl-9 pr-8")} />
               {(input || query) && <button type="button" onClick={clearSearch} aria-label="Clear search" className="absolute right-2.5 top-2.5 text-muted hover:text-fg"><X className="h-3.5 w-3.5" /></button>}
             </div>
-            <select aria-label="Repository filter" value={repoFilter} onChange={(e) => setRepoFilter(e.target.value)} className={cn(inputCls, "w-44")}>
-              <option value="">All repositories</option>
-              {repos.map((r) => <option key={r.id} value={r.id}>{r.full_name}</option>)}
+            <select aria-label="Workspace filter" value={repoFilter} onChange={(e) => setRepoFilter(e.target.value)} className={cn(inputCls, "w-48")}>
+              <option value="">All repositories and groups</option>
+              {groups.length > 0 && <optgroup label="Repo groups">{groups.map((g) => <option key={g.id} value={`group:${g.id}`}>{g.name}</option>)}</optgroup>}
+              <optgroup label="Repositories">{repos.map((r) => <option key={r.id} value={`repo:${r.id}`}>{r.full_name}</option>)}</optgroup>
             </select>
           </form>
           <div className="mb-3 flex flex-wrap gap-1">

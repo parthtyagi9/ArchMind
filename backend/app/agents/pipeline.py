@@ -29,8 +29,9 @@ from app.integrations.atlassian import AtlassianError, clip
 from app.integrations.github import GitHubError, get_github_client
 from app.memory import governance, retrieval
 from app.memory import repository as mrepo
+from app.memory.context import MemoryContext
+from app.services import groups, provenance, repos
 from app.services import integrations as integ
-from app.services import provenance, repos
 
 log = logging.getLogger("archmind.agent")
 AGENT_IDS = ("github", "jira", "confluence", "memory")
@@ -47,7 +48,8 @@ def _blank_agent(aid: str) -> dict:
 def run_api(doc: dict) -> dict:
     return {
         "id": doc["_id"], "kind": doc["kind"], "status": doc["status"], "question": doc["question"], "selection": doc.get("selection"),
-        "repo_id": doc.get("repo_id"), "repo_name": doc.get("repo_name"), "memory_enabled": doc["memory_enabled"], "user": doc["user"],
+        "repo_id": doc.get("repo_id"), "repo_name": doc.get("repo_name"), "group_id": doc.get("group_id"), "group_name": doc.get("group_name"),
+        "memory_enabled": doc["memory_enabled"], "user": doc["user"],
         "created_at": iso(doc["created_at"]), "finished_at": iso(doc.get("finished_at")), "orchestrator": doc["orchestrator"],
         "agents": [doc["agents"][a] for a in AGENT_IDS], "memory": doc["memory"], "reasoning": doc["reasoning"], "answer": doc.get("answer"),
         "error": doc.get("error"), "proposed_memory_id": doc.get("proposed_memory_id"),
@@ -93,7 +95,7 @@ class Ctx:
     p: Principal
     run: dict
     rec: Rec
-    repo: dict | None
+    repo: dict | None  # the repository the selection is in (or the single-repo workspace)
     kind: str
     question: str
     selection: dict | None
@@ -106,10 +108,14 @@ class Ctx:
     atlassian: Any = None  # (cfg, client) | None
     memdocs: list[dict] = field(default_factory=list)
     findings_by_agent: dict[str, list[dict]] = field(default_factory=dict)
+    group: dict | None = None
+    search_repos: list[dict] = field(default_factory=list)  # every repository whose code the GitHub agent may search
+    mctx: MemoryContext = field(default_factory=MemoryContext)
 
 
 # ------------------------------------------------------------------ creation
-def create_run(p: Principal, *, kind: str, question: str, repo_id: str | None, selection: dict | None, memory_enabled: bool) -> dict:
+def create_run(p: Principal, *, kind: str, question: str, repo_id: str | None, selection: dict | None, memory_enabled: bool,
+               group_id: str | None = None) -> dict:
     require(p, "ask")
     if kind not in ("why", "ask"):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "kind must be why or ask")
@@ -118,17 +124,23 @@ def create_run(p: Principal, *, kind: str, question: str, repo_id: str | None, s
         question = "Why does this exist?"
     if not question:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Ask a question")
-    repo = repos.get_repo(p, repo_id) if repo_id else None
+    sel_repo_id = (selection or {}).get("repo_id") or repo_id
+    if group_id and selection and not sel_repo_id:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "In a group workspace, say which repository the selection is from")
+    mctx = groups.context(p, repo_id=sel_repo_id, group_id=group_id)  # validates the group and that the repo is a member
+    group = groups.get_group(p, group_id) if group_id else None
+    repo = repos.get_repo(p, sel_repo_id) if sel_repo_id else None
     if selection:
         selection = {"path": str(selection["path"])[:500], "start_line": int(selection["start_line"]), "end_line": int(selection["end_line"]),
-                     "text": str(selection["text"])[:6000]}
+                     "text": str(selection["text"])[:6000], "repo_id": repo["_id"] if repo else None}
     now = utcnow()
     doc = {
         "_id": new_id("run"), "tenant_id": p.org_id, "kind": kind, "status": "running", "question": question[:2000], "selection": selection,
         "repo_id": repo["_id"] if repo else None, "repo_name": repo["full_name"] if repo else None, "memory_enabled": memory_enabled, "user": p.actor,
+        "group_id": group["_id"] if group else None, "group_name": group["name"] if group else None,
         "created_at": now, "finished_at": None, "orchestrator": {"status": "planning", "plan": [], "note": "Deciding which sources to search"},
         "agents": {a: _blank_agent(a) for a in AGENT_IDS},
-        "memory": {"retrieved": [], "excluded": 0, "filter": retrieval.filter_summary(p, now, repo["_id"] if repo else None, repo["full_name"] if repo else None)},
+        "memory": {"retrieved": [], "excluded": 0, "filter": retrieval.filter_summary(p, now, mctx)},
         "reasoning": {"status": "pending", "model": None}, "answer": None, "error": None, "proposed_memory_id": None,
     }
     get_db().agent_runs.insert_one(doc)
@@ -136,8 +148,8 @@ def create_run(p: Principal, *, kind: str, question: str, repo_id: str | None, s
 
 
 def start_run(p: Principal, *, kind: str, question: str, repo_id: str | None = None, selection: dict | None = None,
-              memory_enabled: bool = True, background: bool = True) -> str:
-    doc = create_run(p, kind=kind, question=question, repo_id=repo_id, selection=selection, memory_enabled=memory_enabled)
+              memory_enabled: bool = True, background: bool = True, group_id: str | None = None) -> str:
+    doc = create_run(p, kind=kind, question=question, repo_id=repo_id, selection=selection, memory_enabled=memory_enabled, group_id=group_id)
     if background:
         threading.Thread(target=execute_run, args=(p, doc["_id"]), daemon=True, name=doc["_id"]).start()
     else:
@@ -155,18 +167,20 @@ def _snippet(text: str, terms: list[str], radius: int = 2) -> str:
     return clip("\n".join(lines[:4]), 300)
 
 
-def search_code(repo_id: str, terms: list[str], limit: int = 6) -> list[dict]:
-    """Keyword search over indexed source. Uses the Atlas text index when present, else a scored scan."""
+def search_code(repo_ids: str | list[str], terms: list[str], limit: int = 6) -> list[dict]:
+    """Keyword search over indexed source of one or more repositories. Uses the Atlas text index when present, else a scored scan."""
+    ids = [repo_ids] if isinstance(repo_ids, str) else list(repo_ids)
+    scope = {"repo_id": ids[0]} if len(ids) == 1 else {"repo_id": {"$in": ids}}
     docs = get_db().source_documents
     hits: list[dict] = []
     try:
-        hits = list(docs.find({"repo_id": repo_id, "$text": {"$search": " ".join(terms)}}, {"score": {"$meta": "textScore"}, "path": 1, "content": 1})
+        hits = list(docs.find({**scope, "$text": {"$search": " ".join(terms)}}, {"score": {"$meta": "textScore"}, "path": 1, "content": 1, "repo_id": 1})
                     .sort([("score", {"$meta": "textScore"})]).limit(limit))
     except Exception:  # no text index (tests / fresh DB): fall back to a scored scan
         hits = []
     if not hits:
         scored = []
-        for d in docs.find({"repo_id": repo_id}, {"path": 1, "content": 1}):
+        for d in docs.find(scope, {"path": 1, "content": 1, "repo_id": 1}):
             low = d["content"].lower()
             sc = sum(low.count(t.lower()) for t in terms) + 3 * sum(t.lower() in d["path"].lower() for t in terms)
             if sc:
@@ -179,9 +193,9 @@ def github_agent(ctx: Ctx) -> list[dict]:
     rec, repo, sel = ctx.rec, ctx.repo, ctx.selection
     out: list[dict] = []
     try:
-        client = get_github_client(repos.provenance_token(ctx.p, repo))
         keys_from: list[str] = []
-        if ctx.kind == "why" and sel:
+        if ctx.kind == "why" and sel and repo:
+            client = get_github_client(repos.provenance_token(ctx.p, repo))
             commits: list[dict] = []
             if client.authenticated:
                 try:
@@ -206,16 +220,23 @@ def github_agent(ctx: Ctx) -> list[dict]:
             out += [provenance.commit_finding(c, repo["full_name"]) for c in commits[:6]]
             keys_from = [c.get("message") for c in commits] + [x for pr in prs.values() for x in (pr["title"], pr["body"], pr.get("branch"))]
         else:
-            with rec.tool("github", f"search indexed code for: {', '.join(ctx.terms[:4]) or ctx.question[:60]}"):
-                hits = search_code(repo["_id"], ctx.terms[:5] or [ctx.question[:40]])
+            by_id = {r["_id"]: r for r in ctx.search_repos}
+            multi = len(by_id) > 1
+            where = f" across {len(by_id)} repositories" if multi else ""
+            with rec.tool("github", f"search indexed code{where} for: {', '.join(ctx.terms[:4]) or ctx.question[:60]}"):
+                hits = search_code(list(by_id), ctx.terms[:5] or [ctx.question[:40]])
             for h in hits:
-                out.append({"kind": "code", "ref": h["path"], "title": h["path"], "detail": _snippet(h["content"], ctx.terms),
-                            "url": f"https://github.com/{repo['full_name']}/blob/{repo['branch']}/{h['path']}"})
+                r = by_id[h["repo_id"]]
+                ref = f"{r['full_name']}:{h['path']}" if multi else h["path"]
+                out.append({"kind": "code", "ref": ref, "title": ref, "detail": _snippet(h["content"], ctx.terms),
+                            "url": f"https://github.com/{r['full_name']}/blob/{r['branch']}/{h['path']}"})
             for h in hits[:2]:
+                r = by_id[h["repo_id"]]
                 try:
-                    with rec.tool("github", f"recent commits touching {h['path']}"):
-                        for c in client.file_history(repo["full_name"], repo["branch"], h["path"], 3):
-                            out.append(provenance.commit_finding(c, repo["full_name"]))
+                    with rec.tool("github", f"recent commits touching {r['full_name'] + ':' if multi else ''}{h['path']}"):
+                        client = get_github_client(repos.provenance_token(ctx.p, r))
+                        for c in client.file_history(r["full_name"], r["branch"], h["path"], 3):
+                            out.append(provenance.commit_finding(c, r["full_name"]))
                             keys_from.append(c.get("message"))
                 except GitHubError:
                     pass
@@ -278,14 +299,13 @@ def confluence_agent(ctx: Ctx) -> list[dict]:
 
 def memory_agent(ctx: Ctx) -> list[dict]:
     rec, p = ctx.rec, ctx.p
-    repo_id = ctx.repo["_id"] if ctx.repo else None
     sel = ctx.selection
     query = " ".join(x for x in (ctx.question, sel["path"] if sel else None, sel["text"][:600] if sel else None) if x)
     with rec.tool("memory", "governed $vectorSearch (tenant · approved · unexpired · scope)"):
-        ctx.memdocs = retrieval.search(p, query, repo_id=repo_id, run_id=ctx.run["_id"])
+        ctx.memdocs = retrieval.search(p, query, ctx=ctx.mctx, run_id=ctx.run["_id"])
     rec.set(**{"memory.retrieved": [{"memory_id": d["memory_id"], "version": d["version"], "title": d["title"], "score": round(d["score"], 4), "used": False}
                                      for d in ctx.memdocs]})
-    excluded = retrieval.excluded_count(p, repo_id)
+    excluded = retrieval.excluded_count(p, ctx.mctx)
     rec.note_tool("memory", f"policy withheld {excluded} memor{'y' if excluded == 1 else 'ies'} before they reach the model")
     rec.set(**{"memory.excluded": excluded})
     return [{"kind": "memory", "ref": f"{d['memory_id']}@v{d['version']}", "title": d["title"], "detail": clip(d["content"], 400), "url": None}
@@ -321,11 +341,18 @@ def gather(p: Principal, run_id: str) -> Ctx:
     run = get_db().agent_runs.find_one({"_id": run_id})
     rec = Rec(run_id)
     repo = repos.get_repo(p, run["repo_id"]) if run.get("repo_id") else None
+    group = groups.get_group(p, run["group_id"]) if run.get("group_id") else None
     sel = run.get("selection")
     terms = keywords(sel["text"] if sel else None, sel["path"].rsplit("/", 1)[-1].rsplit(".", 1)[0] if sel else None, run["question"], limit=6)
-    ctx = Ctx(p=p, run=run, rec=rec, repo=repo, kind=run["kind"], question=run["question"], selection=sel, memory_enabled=run["memory_enabled"], terms=terms)
-    if repo:
+    ctx = Ctx(p=p, run=run, rec=rec, repo=repo, kind=run["kind"], question=run["question"], selection=sel, memory_enabled=run["memory_enabled"], terms=terms,
+              group=group, mctx=groups.context(p, repo_id=None if group else (repo or {}).get("_id"), group_id=(group or {}).get("_id")))
+    if group:
+        ctx.search_repos = groups.member_repos(group)
+        ctx.components = [{"id": n["id"], "path": f"{n['repo_name']}/{n['path']}".rstrip("/")} for n in groups.build_graph(group)["nodes"]]
+    elif repo:
+        ctx.search_repos = [repo]
         ctx.components = [{"id": n["id"], "path": n["path"]} for n in repos.graph(repo["_id"])["nodes"]]
+    if repo:
         if sel:
             d = get_db().source_documents.find_one({"repo_id": repo["_id"], "path": sel["path"]}, {"content": 1})
             if d:
@@ -337,7 +364,7 @@ def gather(p: Principal, run_id: str) -> Ctx:
 
     plan: dict[str, Callable[[Ctx], list[dict]]] = {}
     skipped: dict[str, str] = {}
-    if repo:
+    if ctx.search_repos and (repo or not (ctx.kind == "why" and sel)):
         plan["github"] = github_agent
     else:
         skipped["github"] = "No repository is connected for this workspace, so there is no git history to search."
@@ -420,7 +447,7 @@ def finish(ctx: Ctx, answer: dict, model: str) -> None:
     ctx.rec.set(status="completed", answer=answer, finished_at=utcnow(), reasoning={"status": "done", "model": model},
                 **{"memory.retrieved": retrieved})
     audit.record("agent.run", ctx.p, run_id=ctx.run["_id"], details={
-        "kind": ctx.kind, "repo": ctx.run.get("repo_name"), "memory_enabled": ctx.memory_enabled, "verdict": answer["guidance"]["verdict"],
+        "kind": ctx.kind, "repo": ctx.run.get("repo_name"), "group": ctx.run.get("group_name"), "memory_enabled": ctx.memory_enabled, "verdict": answer["guidance"]["verdict"],
         "memory_used": sorted(cited), "model": model})
 
 
@@ -449,9 +476,10 @@ def execute_run(p: Principal, run_id: str) -> None:
 
 
 # ------------------------------------------------------------------ memory impact comparison
-def start_compare(p: Principal, *, question: str, repo_id: str | None, selection: dict | None, background: bool = True) -> str:
+def start_compare(p: Principal, *, question: str, repo_id: str | None, selection: dict | None, background: bool = True,
+                  group_id: str | None = None) -> str:
     kind = "why" if selection else "ask"
-    run = create_run(p, kind=kind, question=question, repo_id=repo_id, selection=selection, memory_enabled=True)
+    run = create_run(p, kind=kind, question=question, repo_id=repo_id, selection=selection, memory_enabled=True, group_id=group_id)
     cid = new_id("cmp")
     get_db().compares.insert_one({"_id": cid, "tenant_id": p.org_id, "status": "running", "question": run["question"], "error": None,
                                   "evidence_run_id": run["_id"], "without_memory": None, "with_memory": None, "memories_used": [],
@@ -522,8 +550,9 @@ def propose_memory(p: Principal, run_id: str) -> dict:
             typ = {"issue": "jira", "page": "confluence"}.get(f["kind"], "github")
             refs.append({"type": typ, "id": r, "label": clip(f["title"], 100), "url": f["url"]})
     content = f"{ans['headline']}. {ans['guidance']['recommendation']}"
-    doc = governance.propose(p, title=ans["headline"], content=content, memory_type="agent_experience", scope="repo" if run.get("repo_id") else "org",
+    scope = "group" if run.get("group_id") else "repo" if run.get("repo_id") else "org"
+    doc = governance.propose(p, title=ans["headline"], content=content, memory_type="agent_experience", scope=scope,
                              repo_id=run.get("repo_id"), components=ans["affected_components"], source_refs=refs, authority="agent_observed",
-                             force_pending=True)
+                             force_pending=True, group_id=run.get("group_id"))
     get_db().agent_runs.update_one({"_id": run_id}, {"$set": {"proposed_memory_id": doc["memory_id"]}})
     return doc

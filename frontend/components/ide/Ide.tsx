@@ -2,6 +2,7 @@
 import { FileCode, Files, Layers, Network, ShieldCheck, X } from "lucide-react";
 import { pageTitle, useApp, type SidebarPanel } from "@/components/AppState";
 import { ChatPanel } from "@/components/ide/ChatPanel";
+import { ManageGroupButton } from "@/components/ide/ManageGroupButton";
 import { CodeEditor } from "@/components/ide/CodeEditor";
 import { Sidebar } from "@/components/ide/Sidebar";
 import { StatusBar } from "@/components/ide/StatusBar";
@@ -23,10 +24,11 @@ const ACTIVITY: { id: SidebarPanel; icon: typeof Files; label: string }[] = [
 ];
 
 export function Ide() {
-  const { workspace, repo, closeWorkspace, tabs, activeTabId, setActiveTabId, closeTab, sidebar, setSidebar, openArch, pendingCount, can } = useApp();
+  const { workspace, repo, group, groupMembers, closeWorkspace, tabs, activeTabId, setActiveTabId, closeTab, sidebar, setSidebar, openArch, pendingCount, can } = useApp();
   const active = tabs.find((t) => t.id === activeTabId) ?? null;
-  const name = workspace?.kind === "local" ? workspace.name : repo?.full_name ?? "";
-  const chatKey = workspace?.kind === "repo" ? workspace.repoId : `local:${name}`;
+  const name = workspace?.kind === "local" ? workspace.name : workspace?.kind === "group" ? group?.name ?? "" : repo?.full_name ?? "";
+  const chatKey = workspace?.kind === "repo" ? workspace.repoId : workspace?.kind === "group" ? `group:${workspace.groupId}` : `local:${name}`;
+  const indexed = workspace?.kind === "repo" || workspace?.kind === "group";
 
   return (
     <div className="flex h-screen flex-col overflow-hidden">
@@ -35,6 +37,8 @@ export function Ide() {
         <div className="ml-2 flex items-center gap-1.5 text-xs"><Layers className="h-3.5 w-3.5 text-brand" /><span className="font-semibold">ArchMind</span><span className="text-muted">— {name}</span></div>
         <div className="ml-auto flex items-center gap-2">
           {workspace?.kind === "local" && <Badge tone="info">local files · GitHub provenance unavailable</Badge>}
+          {workspace?.kind === "group" && <Badge tone="brand">repo group · {groupMembers.length} repositor{groupMembers.length === 1 ? "y" : "ies"}</Badge>}
+          {workspace?.kind === "group" && <ManageGroupButton />}
           <button onClick={closeWorkspace} className="rounded-md px-2 py-0.5 text-[11px] text-muted hover:bg-line/50 hover:text-fg">Close workspace</button>
         </div>
       </div>
@@ -42,7 +46,7 @@ export function Ide() {
       <div className="flex min-h-0 flex-1">
         <nav aria-label="Activity bar" className="flex w-12 shrink-0 flex-col items-center gap-1 border-r border-line bg-panel/80 py-2">
           {ACTIVITY.map(({ id, icon: Icon, label }) => (
-            <button key={id} title={label} aria-label={label} aria-pressed={sidebar === id} onClick={() => { setSidebar(id); if (id === "arch" && workspace?.kind === "repo") openArch(); }}
+            <button key={id} title={label} aria-label={label} aria-pressed={sidebar === id} onClick={() => { setSidebar(id); if (id === "arch" && indexed) openArch(); }}
               className={cn("relative grid h-10 w-10 place-items-center rounded-lg", sidebar === id ? "text-fg" : "text-muted hover:text-fg")}>
               {sidebar === id && <span className="absolute left-[-6px] h-5 w-[2px] rounded bg-brand" />}
               <Icon className="h-5 w-5" />
@@ -100,13 +104,25 @@ function Page({ page }: { page: PageId }) {
 }
 
 function EmptyEditor() {
-  const { workspace, setSidebar } = useApp();
+  const { workspace, setSidebar, groupMembers } = useApp();
+  if (workspace?.kind === "group" && groupMembers.length === 0) {
+    return (
+      <div className="grid h-full place-items-center px-6 text-center text-xs text-muted">
+        <div className="max-w-sm space-y-3">
+          <Layers className="mx-auto h-8 w-8 text-line" />
+          <p className="text-sm text-fg">This group has no repositories yet</p>
+          <p className="leading-relaxed">Add repositories that are already connected, or connect new ones from GitHub. Once they are indexed, the group map shows how they call each other.</p>
+          <ManageGroupButton variant="button" className="mx-auto" />
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="grid h-full place-items-center px-6 text-center text-xs text-muted">
       <div className="space-y-2">
         <Layers className="mx-auto h-8 w-8 text-line" />
         <p>Open a file from the explorer, then select code and ask why it exists.</p>
-        {workspace?.kind === "repo" && <button onClick={() => setSidebar("files")} className="text-brand hover:underline">Browse files</button>}
+        {(workspace?.kind === "repo" || workspace?.kind === "group") && <button onClick={() => setSidebar("files")} className="text-brand hover:underline">Browse files</button>}
       </div>
     </div>
   );

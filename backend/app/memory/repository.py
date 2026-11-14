@@ -11,10 +11,11 @@ from typing import Any
 from app.config import get_settings
 from app.db import NEVER, get_db, iso, new_id, utcnow
 from app.deps import Principal
+from app.memory.context import NONE, MemoryContext
 from app.memory.embeddings import get_embedder
 
 PENDING, ACTIVE, SUPERSEDED, INVALIDATED, REJECTED, PURGED = "pending", "active", "superseded", "invalidated", "rejected", "purged"
-SCOPES = ("org", "repo", "team")
+SCOPES = ("org", "repo", "team", "group")
 TYPES = ("architecture_decision", "bug_resolution", "repository_convention", "code_ownership", "engineering_preference",
          "workaround", "agent_experience")
 AUTHORITIES = ("agent_observed", "human", "verified")
@@ -31,12 +32,14 @@ def expiry_from_days(days: int | None) -> datetime:
 def create_version(*, tenant_id: str, title: str, content: str, memory_type: str, scope: str, team: str | None, repo_id: str | None,
                    repo_name: str | None, components: list[str], source_refs: list[dict], authority: str, status: str,
                    created_by: dict, approved_by: dict | None = None, expires_at: datetime | None = None,
-                   memory_id: str | None = None, version: int = 1, supersedes: str | None = None) -> dict:
+                   memory_id: str | None = None, version: int = 1, supersedes: str | None = None,
+                   group_id: str | None = None, group_name: str | None = None) -> dict:
     now = utcnow()
     doc: dict[str, Any] = {
         "_id": new_id("memv"), "memory_id": memory_id or new_id("mem"), "version": version, "supersedes": supersedes,
         "tenant_id": tenant_id, "title": title.strip()[:160], "content": content.strip(), "memory_type": memory_type, "scope": scope,
         "team": team if scope == "team" else None, "repo_id": repo_id if scope == "repo" else None, "repo_name": repo_name if scope == "repo" else None,
+        "group_id": group_id if scope == "group" else None, "group_name": group_name if scope == "group" else None,
         "components": components, "source_refs": source_refs, "authority": authority, "status": status,
         "created_by": created_by, "approved_by": approved_by, "created_at": now, "updated_at": now,
         "expires_at": expires_at or expiry_from_days(get_settings().default_memory_ttl_days),
@@ -88,16 +91,19 @@ def effective_status(doc: dict) -> str:
     return "expired" if doc["status"] == ACTIVE and is_expired(doc) else doc["status"]
 
 
-def exclusion_reason(doc: dict, p: Principal, repo_id: str | None = None) -> str | None:
-    """Why an agent acting for `p` would NOT retrieve this memory (None = eligible). Mirrors governance_filter."""
+def exclusion_reason(doc: dict, p: Principal, ctx: MemoryContext = NONE) -> str | None:
+    """Why an agent acting for `p` in `ctx` would NOT retrieve this memory (None = eligible). Mirrors governance_filter.
+    Without a workspace context, repo- and group-scoped memories are reported as eligible (they depend on where you ask)."""
     s = effective_status(doc)
     if s != ACTIVE:
         return {"pending": "pending approval", "superseded": "superseded by a newer version", "invalidated": "revoked",
                 "rejected": "rejected", "purged": "purged", "expired": "expired"}[s]
     if doc["scope"] == "team" and doc.get("team") != p.team:
         return f"scoped to team {doc.get('team')}"
-    if doc["scope"] == "repo" and repo_id is not None and doc.get("repo_id") != repo_id:
+    if doc["scope"] == "repo" and ctx.scoped and doc.get("repo_id") not in ctx.repo_ids:
         return f"scoped to repository {doc.get('repo_name')}"
+    if doc["scope"] == "group" and ctx.scoped and doc.get("group_id") != ctx.group_id:
+        return f"scoped to group {doc.get('group_name')}"
     return None
 
 
@@ -106,22 +112,23 @@ def visible_filter(p: Principal) -> dict:
     base: dict[str, Any] = {"tenant_id": p.org_id}
     if p.role in ("admin", "owner"):
         return base
-    return {"$and": [base, {"$or": [{"scope": {"$in": ["org", "repo"]}}, {"scope": "team", "team": p.team}, {"created_by.id": p.user_id}]},
+    return {"$and": [base, {"$or": [{"scope": {"$in": ["org", "repo", "group"]}}, {"scope": "team", "team": p.team}, {"created_by.id": p.user_id}]},
                      {"$or": [{"status": {"$ne": PENDING}}, {"created_by.id": p.user_id}]}]}
 
 
-def to_api(doc: dict, p: Principal, *, history: list[dict] | None = None, repo_id: str | None = None) -> dict:
+def to_api(doc: dict, p: Principal, *, history: list[dict] | None = None, ctx: MemoryContext = NONE) -> dict:
     exp = doc["expires_at"]
     out = {
         "memory_id": doc["memory_id"], "version": doc["version"], "version_id": doc["_id"], "title": doc.get("title", ""),
         "content": doc.get("content", ""), "memory_type": doc["memory_type"], "status": effective_status(doc), "scope": doc["scope"],
-        "team": doc.get("team"), "repo_id": doc.get("repo_id"), "repo_name": doc.get("repo_name"), "authority": doc["authority"],
+        "team": doc.get("team"), "repo_id": doc.get("repo_id"), "repo_name": doc.get("repo_name"),
+        "group_id": doc.get("group_id"), "group_name": doc.get("group_name"), "authority": doc["authority"],
         "components": doc.get("components", []), "source_refs": doc.get("source_refs", []),
         "created_by": doc["created_by"], "approved_by": doc.get("approved_by"), "created_at": iso(doc["created_at"]),
         "updated_at": iso(doc["updated_at"]), "expires_at": None if exp.year >= 9999 else iso(exp),
         "retrieval_count": doc.get("retrieval_count", 0),
     }
-    reason = exclusion_reason(doc, p, repo_id)
+    reason = exclusion_reason(doc, p, ctx)
     out["eligible"] = reason is None
     out["exclusion_reason"] = reason
     if history is not None:

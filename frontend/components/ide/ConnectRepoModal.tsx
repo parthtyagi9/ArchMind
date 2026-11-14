@@ -7,8 +7,12 @@ import { api, errorMessage } from "@/lib/api";
 import { useAsync, useDebounced } from "@/lib/hooks";
 import { timeAgo } from "@/lib/format";
 
-export function ConnectRepoModal({ onClose }: { onClose: () => void }) {
-  const { repos, integrations, upsertRepo } = useApp();
+/** With `groupId`, every repository connected here is also added to that group, and repositories that are already
+ *  connected (but not in the group) can be added with one click. */
+export function ConnectRepoModal({ onClose, groupId }: { onClose: () => void; groupId?: string }) {
+  const { repos, integrations, upsertRepo, groups, upsertGroup } = useApp();
+  const group = groupId ? groups.find((g) => g.id === groupId) ?? null : null;
+  const inGroup = new Set((group?.repo_ids ?? []).map((id) => repos.find((r) => r.id === id)?.full_name.toLowerCase()).filter(Boolean));
   const [q, setQ] = useState("");
   const dq = useDebounced(q.trim(), 300);
   const list = useAsync(() => api.githubRepos(dq || undefined), [dq]);
@@ -21,19 +25,32 @@ export function ConnectRepoModal({ onClose }: { onClose: () => void }) {
   const oauth = integrations?.github.oauth_configured === true;
   const existing = new Set(repos.map((r) => r.full_name.toLowerCase()));
 
+  const addToGroup = async (repoId: string) => {
+    if (!group) return;
+    upsertGroup(await api.updateGroup(group.id, { repo_ids: [...group.repo_ids.filter((id) => id !== repoId), repoId] }));
+  };
+
   const connect = async (full_name: string, br?: string) => {
     setBusy(full_name); setError(null);
     try {
-      upsertRepo(await api.connectRepo(br ? { full_name, branch: br } : { full_name }));
+      const known = repos.find((r) => r.full_name.toLowerCase() === full_name.toLowerCase());
+      if (known && group) await addToGroup(known.id);  // already connected: just join the group
+      else {
+        const repo = await api.connectRepo(br ? { full_name, branch: br } : { full_name });
+        upsertRepo(repo);
+        if (group) await addToGroup(repo.id);
+      }
       onClose();
     } catch (e) { setError(errorMessage(e)); setBusy(null); }
   };
+  // in a group, an already-connected repository is only "taken" if it is already a member
+  const taken = (name: string) => (group ? inGroup.has(name.toLowerCase()) : existing.has(name.toLowerCase()));
 
   const manualName = manual.trim().replace(/^https?:\/\/github\.com\//, "").replace(/\.git$/, "").replace(/\/$/, "");
   const manualValid = /^[\w.-]+\/[\w.-]+$/.test(manualName);
 
   return (
-    <Modal title="Connect GitHub repository" onClose={onClose} wide>
+    <Modal title={group ? `Add repository to ${group.name}` : "Connect GitHub repository"} onClose={onClose} wide>
       <div className="space-y-4">
         {list.loading && !list.data && <LoadingBlock label="Checking GitHub link…" />}
         {list.error != null && <ErrorBanner error={list.error} onRetry={list.reload} />}
@@ -62,7 +79,8 @@ export function ConnectRepoModal({ onClose }: { onClose: () => void }) {
               {list.loading && <div className="flex justify-center py-3"><Spinner /></div>}
               {!list.loading && list.data!.repos.length === 0 && <p className="py-4 text-center text-xs text-muted">No repositories match{dq ? ` “${dq}”` : ""}.</p>}
               {list.data!.repos.map((r) => {
-                const already = existing.has(r.full_name.toLowerCase());
+                const already = taken(r.full_name);
+                const joinOnly = !!group && !already && existing.has(r.full_name.toLowerCase());
                 return (
                   <button key={r.full_name} disabled={already || busy !== null} onClick={() => void connect(r.full_name, r.default_branch)}
                     className="flex w-full items-center gap-3 rounded-lg border border-line bg-panel-2 px-3 py-2 text-left enabled:hover:border-brand disabled:opacity-60">
@@ -71,7 +89,7 @@ export function ConnectRepoModal({ onClose }: { onClose: () => void }) {
                       {r.description && <div className="truncate text-[11px] text-muted">{r.description}</div>}
                       <div className="text-[10px] text-muted/80">default branch {r.default_branch} · updated {timeAgo(r.updated_at)}</div>
                     </div>
-                    {already ? <Badge tone="ok">connected</Badge> : busy === r.full_name ? <Spinner /> : <span className="text-[11px] text-brand">Connect</span>}
+                    {already ? <Badge tone="ok">{group ? "in group" : "connected"}</Badge> : busy === r.full_name ? <Spinner /> : <span className="text-[11px] text-brand">{joinOnly ? "Add to group" : "Connect"}</span>}
                   </button>
                 );
               })}
@@ -86,14 +104,18 @@ export function ConnectRepoModal({ onClose }: { onClose: () => void }) {
             <Field label="Branch"><input className={inputCls} value={branch} onChange={(e) => setBranch(e.target.value)} placeholder="default" spellCheck={false} /></Field>
           </div>
           {manual.trim() && !manualValid && <p className="text-[11px] text-warn">Use the form owner/name, for example vercel/next.js.</p>}
-          {existing.has(manualName.toLowerCase()) && <p className="text-[11px] text-warn">This repository is already connected.</p>}
-          <Button type="submit" disabled={!manualValid || busy !== null || existing.has(manualName.toLowerCase())}>
-            {busy === manualName && <Spinner className="h-3.5 w-3.5 text-[#0a0b10]" />}Connect repository
+          {taken(manualName) && <p className="text-[11px] text-warn">{group ? "This repository is already in the group." : "This repository is already connected."}</p>}
+          <Button type="submit" disabled={!manualValid || busy !== null || taken(manualName)}>
+            {busy === manualName && <Spinner className="h-3.5 w-3.5 text-[#0a0b10]" />}{group && existing.has(manualName.toLowerCase()) ? "Add to group" : "Connect repository"}
           </Button>
         </form>
 
         {error && <ErrorBanner error={error} />}
-        <InfoBanner tone="info">Connecting indexes the repository on the server so agents can read it. Indexing runs in the background and progress shows on the repository card.</InfoBanner>
+        <InfoBanner tone="info">
+          {group
+            ? `Connecting indexes the repository and adds it to ${group.name}. Indexing runs in the background; its files and map links appear when it finishes.`
+            : "Connecting indexes the repository on the server so agents can read it. Indexing runs in the background and progress shows on the repository card."}
+        </InfoBanner>
       </div>
     </Modal>
   );

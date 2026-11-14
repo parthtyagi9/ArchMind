@@ -2,14 +2,15 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiError, errorMessage, UNAUTHORIZED_EVENT } from "@/lib/api";
 import { invalidate } from "@/lib/cache";
-import type { Integrations, Me, PageId, Permission, Repo, Selection, Tab, Workspace } from "@/lib/types";
+import { groupRepos } from "@/lib/groupData";
+import type { Group, Integrations, Me, PageId, Permission, Repo, Selection, Tab, Workspace } from "@/lib/types";
 
 export type SidebarPanel = "files" | "arch" | "gov";
 export type BootStatus = "loading" | "signed_out" | "ready" | "error";
 
 export interface Notice { kind: "error" | "ok"; text: string }
 export interface AskRequest { nonce: number; question: string; selection: Selection | null }
-export interface ComparePrefill { nonce: number; question: string; selection: Selection | null; repoId: string | null }
+export interface ComparePrefill { nonce: number; question: string; selection: Selection | null; repoId: string | null; groupId?: string | null }
 
 interface AppState {
   status: BootStatus;
@@ -37,9 +38,18 @@ interface AppState {
   upsertRepo: (r: Repo) => void;
   removeRepoLocal: (id: string) => void;
 
+  groups: Group[];
+  groupsError: string | null;
+  refreshGroups: () => Promise<void>;
+  upsertGroup: (g: Group) => void;
+  removeGroupLocal: (id: string) => void;
+
   workspace: Workspace | null;
   repo: Repo | null; // the repo of the open workspace, if any
+  group: Group | null; // the group of the open workspace, if any
+  groupMembers: Repo[]; // its repositories, with live indexing status
   openRepo: (id: string) => void;
+  openGroup: (id: string) => void;
   openLocal: (name: string, files: Record<string, string>) => void;
   closeWorkspace: () => void;
   settingsOpen: boolean;
@@ -76,7 +86,7 @@ interface AppState {
   selectedRunId: string | null;
   openRun: (runId: string) => void;
   comparePrefill: ComparePrefill | null;
-  openCompare: (p: { question: string; selection: Selection | null; repoId: string | null }) => void;
+  openCompare: (p: { question: string; selection: Selection | null; repoId: string | null; groupId?: string | null }) => void;
 }
 
 const Ctx = createContext<AppState | null>(null);
@@ -115,6 +125,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [repos, setRepos] = useState<Repo[]>([]);
   const [reposLoading, setReposLoading] = useState(false);
   const [reposError, setReposError] = useState<string | null>(null);
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [groupsError, setGroupsError] = useState<string | null>(null);
 
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -148,6 +160,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     finally { setReposLoading(false); }
   }, []);
 
+  const loadGroups = useCallback(async () => {
+    setGroupsError(null);
+    try { setGroups(await api.groups()); }
+    catch (e) { setGroupsError(errorMessage(e)); }
+  }, []);
+
   const refreshIntegrations = useCallback(async () => {
     try { setIntegrations(await api.integrations()); } catch { /* non-fatal: status bar falls back to "unknown" */ }
   }, []);
@@ -164,9 +182,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setMe(m);
     setStatus("ready");
     void loadRepos();
+    void loadGroups();
     void refreshIntegrations();
     void refreshPending();
-  }, [loadRepos, refreshIntegrations, refreshPending]);
+  }, [loadRepos, loadGroups, refreshIntegrations, refreshPending]);
 
   // keep the pending-approval badge fresh
   useEffect(() => {
@@ -176,7 +195,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [status, refreshPending]);
 
   const signedOut = useCallback(() => {
-    setMe(null); setStatus("signed_out"); setRepos([]); setIntegrations(null); setPendingCount(0); resetWorkspaceState();
+    setMe(null); setStatus("signed_out"); setRepos([]); setGroups([]); setIntegrations(null); setPendingCount(0); resetWorkspaceState();
   }, [resetWorkspaceState]);
 
   // ---------- bootstrap: /auth/me then /repos
@@ -219,8 +238,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const upsertRepo = useCallback((r: Repo) => setRepos((rs) => (rs.some((x) => x.id === r.id) ? rs.map((x) => (x.id === r.id ? r : x)) : [r, ...rs])), []);
   const removeRepoLocal = useCallback((id: string) => {
     setRepos((rs) => rs.filter((x) => x.id !== id));
+    setGroups((gs) => gs.map((g) => (g.repo_ids.includes(id) ? { ...g, repo_ids: g.repo_ids.filter((r) => r !== id), repos: g.repos.filter((r) => r.id !== id), updated_at: new Date().toISOString() } : g)));
     setWorkspace((w) => (w?.kind === "repo" && w.repoId === id ? null : w));
     invalidate(`${id}|`);
+  }, []);
+
+  const upsertGroup = useCallback((g: Group) => setGroups((gs) => (gs.some((x) => x.id === g.id) ? gs.map((x) => (x.id === g.id ? g : x)) : [...gs, g].sort((a, b) => a.name.localeCompare(b.name)))), []);
+  const removeGroupLocal = useCallback((id: string) => {
+    setGroups((gs) => gs.filter((g) => g.id !== id));
+    setWorkspace((w) => (w?.kind === "group" && w.groupId === id ? null : w));
   }, []);
 
   const indexingKey = repos.filter((r) => r.status === "indexing").map((r) => r.id).join(",");
@@ -254,6 +280,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const m = await api.switchOrg(orgId);
     resetWorkspaceState();
     setRepos([]);
+    setGroups([]);
     afterSignIn(m);
   }, [afterSignIn, resetWorkspaceState]);
 
@@ -261,6 +288,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const m = await api.createOrg(name);
     resetWorkspaceState();
     setRepos([]);
+    setGroups([]);
     afterSignIn(m);
   }, [afterSignIn, resetWorkspaceState]);
 
@@ -292,6 +320,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setSidebar("files");
   }, [resetWorkspaceState]);
   const openRepo = useCallback((id: string) => startWorkspace({ kind: "repo", repoId: id }), [startWorkspace]);
+  const openGroup = useCallback((id: string) => startWorkspace({ kind: "group", groupId: id }), [startWorkspace]);
   const openLocal = useCallback((name: string, files: Record<string, string>) => {
     startWorkspace({ kind: "local", name, files });
     const first = ["README.md"].find((p) => p in files) ?? Object.keys(files).sort()[0];
@@ -309,7 +338,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const showInArchitecture = useCallback((ids: string[]) => { setHighlight(ids); openArch(); }, [openArch]);
   const openMemory = useCallback((id: string) => { setFocusMemoryId(id); openPage("memory"); }, [openPage]);
   const openRun = useCallback((id: string) => { setSelectedRunId(id); openPage("runs"); }, [openPage]);
-  const openCompare = useCallback((p: { question: string; selection: Selection | null; repoId: string | null }) => {
+  const openCompare = useCallback((p: { question: string; selection: Selection | null; repoId: string | null; groupId?: string | null }) => {
     nonce.current += 1;
     setComparePrefill({ nonce: nonce.current, ...p });
     openPage("compare");
@@ -317,17 +346,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const can = useCallback((p: Permission) => !!me?.org.permissions.includes(p), [me]);
   const repo = workspace?.kind === "repo" ? repos.find((r) => r.id === workspace.repoId) ?? null : null;
+  const group = workspace?.kind === "group" ? groups.find((g) => g.id === workspace.groupId) ?? null : null;
+  const groupMembers = useMemo(() => groupRepos(group, repos), [group, repos]);
 
   const value = useMemo<AppState>(() => ({
     status, bootError, retryBoot: () => setBootTick((t) => t + 1), me, can, signedIn: afterSignIn, signOut, switchOrg, createOrg, notice, setNotice,
     pendingCount, refreshPending, integrations, refreshIntegrations, repos, reposLoading, reposError, refreshRepos: loadRepos, upsertRepo, removeRepoLocal,
-    workspace, repo, openRepo, openLocal, closeWorkspace, settingsOpen, setSettingsOpen,
+    groups, groupsError, refreshGroups: loadGroups, upsertGroup, removeGroupLocal,
+    workspace, repo, group, groupMembers, openRepo, openGroup, openLocal, closeWorkspace, settingsOpen, setSettingsOpen,
     tabs, activeTabId, setActiveTabId, openFile, openPage, openArch, closeTab, sidebar, setSidebar,
     memoryOn, setMemoryOn, pendingSelection, setPendingSelection, activeRange, setActiveRange, askRequest, requestAsk,
     highlight, setHighlight, showInArchitecture, selectedNode, setSelectedNode,
     focusMemoryId, clearFocusMemory: () => setFocusMemoryId(null), openMemory, selectedRunId, openRun, comparePrefill, openCompare,
   }), [status, bootError, me, can, afterSignIn, signOut, switchOrg, createOrg, notice, pendingCount, refreshPending, integrations, refreshIntegrations, repos, reposLoading, reposError, loadRepos,
-    upsertRepo, removeRepoLocal, workspace, repo, openRepo, openLocal, closeWorkspace, settingsOpen, tabs, activeTabId, openFile, openPage, openArch, closeTab, sidebar,
+    upsertRepo, removeRepoLocal, groups, groupsError, loadGroups, upsertGroup, removeGroupLocal, workspace, repo, group, groupMembers, openRepo, openGroup, openLocal, closeWorkspace, settingsOpen, tabs, activeTabId, openFile, openPage, openArch, closeTab, sidebar,
     memoryOn, pendingSelection, activeRange, askRequest, requestAsk, highlight, showInArchitecture, selectedNode, focusMemoryId, openMemory, selectedRunId, openRun,
     comparePrefill, openCompare]);
 

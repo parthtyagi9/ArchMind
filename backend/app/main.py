@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import agent, auth, integrations, memories, org, repos
+from app.api import agent, auth, groups, integrations, memories, org, repos
 from app.config import get_settings
 from app.db import get_db, ping, utcnow
 
@@ -39,7 +39,7 @@ app.add_middleware(CORSMiddleware, allow_origins=[get_settings().frontend_origin
                    allow_methods=["*"], allow_headers=["*"])
 
 api = APIRouter(prefix="/api")
-for module in (auth, org, integrations, repos, memories, agent):
+for module in (auth, org, integrations, repos, groups, memories, agent):
     api.include_router(module.router)
 
 

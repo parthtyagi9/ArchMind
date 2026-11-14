@@ -11,12 +11,13 @@ import { useAsync, usePolling } from "@/lib/hooks";
 import type { Run } from "@/lib/types";
 
 export function RunsView() {
-  const { selectedRunId, repo } = useApp();
+  const { selectedRunId, repo, group } = useApp();
   const [scope, setScope] = useState<"all" | "repo">("all");
   const [picked, setPicked] = useState<string | null>(null);
   useEffect(() => { if (selectedRunId) setPicked(selectedRunId); }, [selectedRunId]);
   const repoId = scope === "repo" && repo ? repo.id : undefined;
-  const list = useAsync(() => api.runs({ repo_id: repoId, limit: 30 }), [repoId]);
+  const groupId = scope === "repo" && group ? group.id : undefined;
+  const list = useAsync(() => api.runs({ repo_id: repoId, group_id: groupId, limit: 30 }), [repoId, groupId]);
   const runs = list.data ?? [];
   const activeId = picked ?? selectedRunId ?? runs[0]?.id ?? null;
   const inList = runs.find((r) => r.id === activeId) ?? null;
@@ -27,7 +28,7 @@ export function RunsView() {
   return (
     <>
       <PageHeader title="Agent Run Inspector" sub="Every run records what each agent did, what memory was retrieved or withheld, and the structured decision that came out."
-        right={repo && <div className="flex gap-1"><Chip active={scope === "all"} onClick={() => setScope("all")}>All runs</Chip><Chip active={scope === "repo"} onClick={() => setScope("repo")}>{repo.full_name}</Chip></div>} />
+        right={(repo || group) && <div className="flex gap-1"><Chip active={scope === "all"} onClick={() => setScope("all")}>All runs</Chip><Chip active={scope === "repo"} onClick={() => setScope("repo")}>{repo?.full_name ?? group?.name}</Chip></div>} />
       {list.loading && !list.data && <LoadingBlock label="Loading runs…" />}
       {list.error != null && <ErrorBanner error={list.error} onRetry={list.reload} />}
       {extra.error != null && <ErrorBanner error={extra.error} onRetry={extra.reload} className="mb-3" />}
@@ -71,7 +72,7 @@ function RunDetail({ initial }: { initial: Run }) {
             <div className="flex items-center gap-2">
               <Badge tone={run.memory_enabled ? "ok" : "neutral"}>{run.memory_enabled ? "memory on" : "memory off"}</Badge>
               <Button size="sm" variant="outline" disabled={!can("ask")} title={can("ask") ? "Re-run this question with and without memory" : "Requires the ask permission"}
-                onClick={() => openCompare({ question: run.question, selection: run.selection, repoId: run.repo_id })}><GitCompareArrows className="h-3.5 w-3.5" />Compare with/without memory</Button>
+                onClick={() => openCompare({ question: run.question, selection: run.selection, repoId: run.repo_id, groupId: run.group_id })}><GitCompareArrows className="h-3.5 w-3.5" />Compare with/without memory</Button>
             </div>
           } />
         <div className="space-y-4 p-4 text-xs">

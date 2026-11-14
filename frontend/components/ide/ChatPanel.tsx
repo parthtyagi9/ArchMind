@@ -6,6 +6,7 @@ import { SubmitState, ThreadEntry, type ThreadItem } from "@/components/ide/Thre
 import { Button, ErrorBanner, InfoBanner, Skeleton, cn } from "@/components/ui";
 import { api, errorMessage } from "@/lib/api";
 import { selLabel } from "@/lib/format";
+import { apiSelection, groupPath } from "@/lib/groupData";
 import { useAsync } from "@/lib/hooks";
 import type { Run, Selection } from "@/lib/types";
 
@@ -14,22 +15,27 @@ const nextKey = () => `q${Date.now()}_${++keySeq}`;
 const fromRun = (r: Run): ThreadItem => ({ key: r.id, question: r.question, selection: r.selection, runId: r.id, run: r, submitError: null });
 
 export function ChatPanel() {
-  const { workspace, repo, memoryOn, setMemoryOn, pendingSelection, setPendingSelection, askRequest, can, me } = useApp();
+  const { workspace, repo, group, groupMembers, memoryOn, setMemoryOn, pendingSelection, setPendingSelection, askRequest, can, me } = useApp();
   const repoId = workspace?.kind === "repo" ? workspace.repoId : null;
+  const groupId = workspace?.kind === "group" ? workspace.groupId : null;
   const isLocal = workspace?.kind === "local";
+  const membersRef = useRef(groupMembers);
+  membersRef.current = groupMembers;
   const [items, setItems] = useState<ThreadItem[]>([]);
   const [text, setText] = useState("");
   const bottom = useRef<HTMLDivElement>(null);
   const canAsk = can("ask");
 
-  // Prior runs for this repository, so the thread persists across reloads.
-  const history = useAsync(() => api.runs({ repo_id: repoId ?? undefined, limit: 30 }), [repoId], repoId !== null);
+  // Prior runs for this repository (or group), so the thread persists across reloads.
+  const history = useAsync(() => api.runs(groupId ? { group_id: groupId, limit: 30 } : { repo_id: repoId ?? undefined, limit: 30 }), [repoId, groupId], repoId !== null || groupId !== null);
   useEffect(() => {
     const runs = history.data;
     if (!runs) return;
     setItems((cur) => {
       const have = new Set(cur.map((i) => i.runId));
-      return [...runs.slice().reverse().filter((r) => !have.has(r.id)).map(fromRun), ...cur];
+      // in a group, show the selection with its repository prefix, the way it appears in the explorer
+      const shown = runs.map((r) => (r.group_id && r.selection && r.repo_name ? { ...r, selection: { ...r.selection, path: groupPath(r.repo_name, r.selection.path) } } : r));
+      return [...shown.slice().reverse().filter((r) => !have.has(r.id)).map(fromRun), ...cur];
     });
   }, [history.data]);
 
@@ -39,13 +45,14 @@ export function ChatPanel() {
 
   const start = useCallback(async (key: string, question: string, selection: Selection | null) => {
     try {
+      const sel = selection && groupId ? apiSelection(membersRef.current, selection) : selection;
       const { run_id } = await api.startRun({
         kind: selection ? "why" : "ask", question, memory_enabled: memoryOn,
-        ...(repoId ? { repo_id: repoId } : {}), ...(selection ? { selection } : {}),
+        ...(groupId ? { group_id: groupId } : repoId ? { repo_id: repoId } : {}), ...(sel ? { selection: sel } : {}),
       });
       patch(key, { runId: run_id, submitError: null });
     } catch (e) { patch(key, { submitError: errorMessage(e) }); }
-  }, [memoryOn, repoId, patch]);
+  }, [memoryOn, repoId, groupId, patch]);
 
   const submit = useCallback((question: string, selection: Selection | null) => {
     const key = nextKey();
@@ -87,6 +94,7 @@ export function ChatPanel() {
       </div>
 
       {isLocal && <InfoBanner tone="info" className="m-3 mb-0">Local files: GitHub provenance unavailable. The GitHub agent will report itself skipped; Jira, Confluence and Memory still run.</InfoBanner>}
+      {group && groupMembers.some((r) => r.status !== "ready") && <InfoBanner className="m-3 mb-0">Some repositories in this group are not indexed yet. Answers search only the indexed ones.</InfoBanner>}
       {repo && repo.status !== "ready" && <InfoBanner className="m-3 mb-0">This repository is {repo.status === "indexing" ? "still indexing" : "not indexed"}. Answers will have less evidence until indexing finishes.</InfoBanner>}
 
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-3 py-3">

@@ -1,8 +1,10 @@
 "use client";
-import { ArrowLeft, FileText, FolderOpen, Layers, Plus, Settings } from "lucide-react";
+import { ArrowLeft, Boxes, FileText, FolderOpen, Layers, Plus, Settings } from "lucide-react";
 import { useRef, useState } from "react";
 import { useApp } from "@/components/AppState";
 import { ConnectRepoModal } from "@/components/ide/ConnectRepoModal";
+import { GroupCard } from "@/components/ide/GroupCard";
+import { GroupModal } from "@/components/ide/GroupModal";
 import { RepoCard } from "@/components/ide/RepoCard";
 import { UserMenu } from "@/components/ide/UserMenu";
 import { SettingsView } from "@/components/settings/SettingsView";
@@ -10,10 +12,11 @@ import { Button, ErrorBanner, GithubMark, InfoBanner, Skeleton } from "@/compone
 import { readFolder, readSingleFile } from "@/lib/localFiles";
 
 export function WorkspacePicker() {
-  const { me, repos, reposLoading, reposError, refreshRepos, can, openLocal, notice, setNotice, settingsOpen, setSettingsOpen, integrations } = useApp();
+  const { me, repos, reposLoading, reposError, refreshRepos, groups, groupsError, refreshGroups, can, openLocal, notice, setNotice, settingsOpen, setSettingsOpen, integrations } = useApp();
   const folderRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [connect, setConnect] = useState(false);
+  const [newGroup, setNewGroup] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
   const onFolder = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -75,6 +78,30 @@ export function WorkspacePicker() {
             </InfoBanner>
           )}
 
+          <section aria-labelledby="groups-h" className="mb-8">
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <h2 id="groups-h" className="text-sm font-semibold">Repo groups</h2>
+              <span className="text-xs text-muted">{groups.length > 0 && `${groups.length} in ${me.org.name}`}</span>
+              <Button size="sm" variant="outline" className="ml-auto" disabled={!can("connect_repo")} onClick={() => setNewGroup(true)}
+                title={can("connect_repo") ? undefined : "Requires the connect_repo permission (admin or owner)"}>
+                <Plus className="h-3.5 w-3.5" />Create group
+              </Button>
+            </div>
+            {groupsError && <ErrorBanner error={groupsError} onRetry={() => void refreshGroups()} className="mb-3" />}
+            {groups.length > 0 ? (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{groups.map((g) => <GroupCard key={g.id} group={g} />)}</div>
+            ) : !groupsError && (
+              <div className="flex items-start gap-3 rounded-xl border border-dashed border-line px-4 py-4">
+                <Boxes className="mt-0.5 h-5 w-5 shrink-0 text-muted" />
+                <div className="text-xs leading-relaxed text-muted">
+                  <span className="font-medium text-fg">Split across several repositories?</span> Put them in a group, for example a frontend and a backend
+                  repo for one product. The group&apos;s architecture map shows which frontend calls hit which backend routes and which packages are shared,
+                  and questions asked in the group search every repository.
+                </div>
+              </div>
+            )}
+          </section>
+
           <section aria-labelledby="repos-h">
             <div className="mb-3 flex flex-wrap items-center gap-2">
               <h2 id="repos-h" className="text-sm font-semibold">Connected repositories</h2>
@@ -125,6 +152,7 @@ export function WorkspacePicker() {
       <input ref={folderRef} type="file" className="hidden" onChange={(e) => void onFolder(e)} {...({ webkitdirectory: "", directory: "" } as object)} />
       <input ref={fileRef} type="file" className="hidden" onChange={(e) => void onFile(e)} />
       {connect && <ConnectRepoModal onClose={() => setConnect(false)} />}
+      {newGroup && <GroupModal onClose={() => setNewGroup(false)} />}
     </div>
   );
 }
