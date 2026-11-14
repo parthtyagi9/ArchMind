@@ -1,0 +1,2 @@
+# ArcMind
+MongoDB atlas hackathon
