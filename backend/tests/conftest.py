@@ -1,75 +1,98 @@
-"""Unit-test fixtures: mongomock DB, deterministic hash embedder, scripted LLM. No network."""
+"""Unit-test fixtures: mongomock DB, deterministic hash embedder, scripted LLM, fake integrations. No network."""
 from __future__ import annotations
-
-import json
-import re
 
 import mongomock
 import pytest
+from fastapi.testclient import TestClient
 from pymongo import ASCENDING, IndexModel
 
-from app.agents.llm import Classification, PlanDecision, set_llm
+from app.agents.llm import LLMAnswer, LLMConstraint, set_llm
 from app.config import get_settings
 from app.db import set_db
 from app.memory.embeddings import HashEmbedder, set_embedder
 
 
 class ScriptedLLM:
-    """Deterministic stand-in for Gemini. Reads the prompt the real agent built, so it reacts to the
-    memories actually passed in, exactly like the real model would have to."""
+    """Deterministic stand-in for Gemini. It reads the prompt the real agent built, so it reacts to exactly the
+    memories passed in (and to nothing else), the same way the real model has to."""
     model_name = "scripted"
 
-    def __init__(self, diagnostics=("inspect_service_logs", "inspect_service_permissions", "inspect_secret_access",
-                                    "inspect_kms_key", "inspect_network_path"), fix="repair_secret_access",
-                 forced: list[str] | None = None):
-        self.diagnostics = list(diagnostics)
-        self.fix = fix
-        self.forced = list(forced) if forced else None
+    def __init__(self) -> None:
         self.prompts: list[str] = []
 
     def structured(self, system, prompt, schema):
         self.prompts.append(prompt)
-        if schema is Classification:
-            return Classification(failure_category="secret_access_denied", affected_service="payment-service",
-                                  summary="Service cannot read its secret.", search_query="secret access denied")
-        done = re.findall(r'"tool": "([a-z_]+)"', prompt.split("<untrusted_tool_history>")[-1])
-        mem_block = prompt.split("<untrusted_memories>")[1].split("</untrusted_memories>")[0]
-        if self.forced is not None:
-            tool = self.forced.pop(0) if self.forced else None
-            if tool is None:
-                return PlanDecision(decision="escalate", hypothesis="?", rationale="script exhausted")
-            return PlanDecision(decision="call_tool", tool_name=tool, service="payment-service", hypothesis="h",
-                                rationale="scripted")
-        mems = json.loads(mem_block) if mem_block.strip().startswith("[") else []
-        verified = [m for m in mems if m.get("resolution_action") == self.fix and m.get("outcome") == "success"]
-        if verified and self.fix not in done:
-            return PlanDecision(decision="call_tool", tool_name=self.fix, service="payment-service",
-                                hypothesis="same root cause as verified memory", rationale="memory",
-                                memory_ids_used=[verified[0]["memory_id"]])
-        for d in self.diagnostics:
-            if d not in done:
-                return PlanDecision(decision="call_tool", tool_name=d, service="payment-service",
-                                    hypothesis="investigating", rationale="diagnose")
-        return PlanDecision(decision="call_tool", tool_name=self.fix, service="payment-service",
-                            hypothesis="missing GetSecretValue", rationale="diagnostics point to IAM")
+        mems_block = prompt.split("<memories>")[1].split("</memories>")[0]
+        refs = []
+        if '"memory_ref"' in mems_block:
+            import re
+
+            refs = re.findall(r'"memory_ref": "([^"]+)"', mems_block)
+        bogus = LLMConstraint(text="Invented rule", memory_ref="mem_doesnotexist@v9")
+        if refs:
+            return LLMAnswer(headline="Constrained", explanation=["Because of an approved decision."], verdict="needs_architecture_review",
+                             recommendation="Do not change without review.", constraints=[LLMConstraint(text="Follow the decision", memory_ref=refs[0]), bogus],
+                             risks=["regression"], evidence_refs=["PR #7", "PR #999"], affected_components=["svc~auth", "nope"], confidence="high")
+        return LLMAnswer(headline="Free to change", explanation=["No constraints known."], verdict="proceed", recommendation="Go ahead.",
+                         constraints=[bogus], risks=[], evidence_refs=["PR #7"], affected_components=["svc~auth"], confidence="medium")
 
 
 @pytest.fixture(autouse=True)
 def env():
     db = mongomock.MongoClient(tz_aware=True).db
-    db.memories.create_indexes([
-        IndexModel([("tenant_id", ASCENDING), ("memory_id", ASCENDING), ("version", ASCENDING)], unique=True),
-        # The partial unique "one active version" index is created on Atlas by scripts/create_indexes.py.
-        # mongomock ignores partialFilterExpression (it would enforce full uniqueness), so it is omitted here.
-    ])
+    db.users.create_indexes([IndexModel([("email", ASCENDING)], unique=True)])
+    db.memberships.create_indexes([IndexModel([("user_id", ASCENDING), ("org_id", ASCENDING)], unique=True)])
+    db.memories.create_indexes([IndexModel([("tenant_id", ASCENDING), ("memory_id", ASCENDING), ("version", ASCENDING)], unique=True)])
+    # The partial unique "one active version per lineage" index lives in scripts/create_indexes.py (mongomock ignores partial filters).
     set_db(db)
-    set_embedder(HashEmbedder(get_settings().embedding_dimensions))
     s = get_settings()
-    s.vector_backend = "local"
-    s.memory_min_score = 0.55
+    saved = (s.vector_backend, s.memory_min_score, s.session_secret)
+    s.vector_backend, s.memory_min_score, s.session_secret = "local", 0.5, "test-secret"
+    set_embedder(HashEmbedder(s.embedding_dimensions))
     llm = ScriptedLLM()
     set_llm(llm)
     yield {"db": db, "llm": llm}
+    s.vector_backend, s.memory_min_score, s.session_secret = saved
     set_db(None)
     set_embedder(None)
     set_llm(None)
+
+
+@pytest.fixture
+def client():
+    from app.main import app
+
+    return TestClient(app)
+
+
+def register(client: TestClient, email: str, name: str = "Test User", org_name: str | None = None, invite_code: str | None = None):
+    body = {"email": email, "password": "correct horse", "name": name}
+    if invite_code:
+        body["invite_code"] = invite_code
+    else:
+        body["org_name"] = org_name or f"{name} Org"
+    r = client.post("/api/auth/register", json=body)
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+def principal_for(client: TestClient):
+    """Principal of whoever the client is signed in as."""
+    from app.deps import principal_from_session
+    from app.security import COOKIE_NAME
+
+    return principal_from_session(client.cookies.get(COOKIE_NAME))
+
+
+@pytest.fixture
+def make_client():
+    from app.main import app
+
+    clients = []
+
+    def _make():
+        c = TestClient(app)
+        clients.append(c)
+        return c
+
+    return _make

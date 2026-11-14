@@ -1,0 +1,92 @@
+"use client";
+import { Brain, FolderOpen } from "lucide-react";
+import { useMemo, useRef } from "react";
+import { useApp, type SidebarPanel } from "@/components/AppState";
+import { FileTree } from "@/components/ide/FileTree";
+import { Badge, Skeleton, ErrorBanner, cn } from "@/components/ui";
+import { KIND_COLOR } from "@/components/views/ArchGraph";
+import { readFolder } from "@/lib/localFiles";
+import { useRepoGraph } from "@/lib/repoData";
+import type { PageId } from "@/lib/types";
+
+const GOV_PAGES: { page: PageId; label: string }[] = [
+  { page: "memory", label: "Memory Inspector" },
+  { page: "approvals", label: "Approval Center" },
+  { page: "history", label: "Decision History" },
+  { page: "runs", label: "Agent Run Inspector" },
+  { page: "compare", label: "Memory Impact" },
+];
+
+const TITLES: Record<SidebarPanel, string> = { files: "Explorer", arch: "Architecture", gov: "Governance" };
+
+export function Sidebar() {
+  const { sidebar, workspace, repo, openLocal } = useApp();
+  const folderRef = useRef<HTMLInputElement>(null);
+
+  const swapFolder = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const list = e.target.files;
+    if (!list?.length) return;
+    const r = await readFolder(list).catch(() => null);
+    if (r && Object.keys(r.files).length) openLocal(r.name, r.files);
+    e.target.value = "";
+  };
+
+  return (
+    <aside className="flex w-60 shrink-0 flex-col border-r border-line bg-panel/50">
+      <div className="flex items-center justify-between px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-muted">
+        <span>{TITLES[sidebar]}</span>
+        {sidebar === "files" && workspace?.kind === "local" && (
+          <button onClick={() => folderRef.current?.click()} title="Open another local folder" aria-label="Open another local folder" className="text-muted hover:text-fg"><FolderOpen className="h-3.5 w-3.5" /></button>
+        )}
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {sidebar === "files" && (
+          <>
+            <div className="truncate px-3 pb-1 font-mono text-[11px] text-fg">{workspace?.kind === "local" ? workspace.name : repo?.full_name}</div>
+            <FileTree />
+          </>
+        )}
+        {sidebar === "arch" && <ArchSide />}
+        {sidebar === "gov" && <GovSide />}
+      </div>
+      <input ref={folderRef} type="file" className="hidden" onChange={(e) => void swapFolder(e)} {...({ webkitdirectory: "", directory: "" } as object)} />
+    </aside>
+  );
+}
+
+function GovSide() {
+  const { openPage, pendingCount, can } = useApp();
+  return (
+    <div className="px-2 py-1">
+      {GOV_PAGES.map((g) => (
+        <button key={g.page} onClick={() => openPage(g.page)} className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12.5px] text-muted hover:bg-line/40 hover:text-fg">
+          <Brain className="h-3.5 w-3.5" />{g.label}
+          {g.page === "approvals" && can("approve_memory") && pendingCount > 0 && <Badge tone="warn" className="ml-auto">{pendingCount}</Badge>}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function ArchSide() {
+  const { workspace, repo, openArch, setSelectedNode, selectedNode } = useApp();
+  const graph = useRepoGraph(repo);
+  const nodes = useMemo(() => (graph.data ? [...graph.data.nodes].sort((a, b) => a.label.localeCompare(b.label)) : []), [graph.data]);
+
+  if (workspace?.kind === "local") return <p className="px-3 py-2 text-xs leading-relaxed text-muted">The architecture graph is built from an indexed repository. Connect the repository from the workspace picker to explore it.</p>;
+  if (!repo) return null;
+  if (repo.status !== "ready") return <p className="px-3 py-2 text-xs leading-relaxed text-muted">The graph is built when indexing finishes.</p>;
+  if (graph.loading && !graph.data) return <div className="space-y-1.5 px-3 py-2">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-4" />)}</div>;
+  if (graph.error != null) return <div className="p-2"><ErrorBanner error={graph.error} onRetry={graph.reload} /></div>;
+  if (nodes.length === 0) return <p className="px-3 py-2 text-xs leading-relaxed text-muted">No components were found in this repository.</p>;
+  return (
+    <div className="px-2 py-1">
+      {nodes.map((n) => (
+        <button key={n.id} onClick={() => { setSelectedNode(n.id); openArch(); }} className={cn("flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12.5px] hover:bg-line/40", selectedNode === n.id ? "bg-brand-soft text-fg" : "text-muted")}>
+          <span className="h-2 w-2 shrink-0 rounded-sm" style={{ background: KIND_COLOR[n.kind] }} /><span className="truncate">{n.label}</span>
+          {n.memory_count > 0 && <span className="ml-auto text-[10px] text-brand">◆{n.memory_count}</span>}
+        </button>
+      ))}
+    </div>
+  );
+}

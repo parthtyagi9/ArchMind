@@ -1,4 +1,4 @@
-// Tiny line-based syntax highlighter. Good enough for a preview; not a real tokenizer.
+// Small line-based syntax highlighter for the code editor (regex tokens, no multi-line state).
 const KW = new Set((
   "import from export default const let var function return async await if else for while new class interface type extends implements try catch finally throw " +
   "def lambda pass with as in is not and or None True False self SELECT FROM WHERE INSERT INTO VALUES UPDATE SET CREATE TABLE PRIMARY KEY NOT NULL DEFAULT REFERENCES CHECK ORDER BY DESC LIMIT BEGIN COMMIT ROLLBACK RETURNING " +

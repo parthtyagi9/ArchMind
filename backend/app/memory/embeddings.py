@@ -1,6 +1,6 @@
-"""Embedding providers. Production path: Voyage AI voyage-4 at 1024 dims (Gemini gemini-embedding-001 supported)
-(must equal numDimensions in the Atlas vector index). HashEmbedder is a deterministic
-bag-of-words stand-in used only by unit tests, which cannot reach Gemini."""
+"""Embedding providers: Voyage AI (voyage-4) or Gemini (gemini-embedding-001), both at the configured dimensions,
+which must equal numDimensions in the Atlas vector index. HashEmbedder is a deterministic bag-of-words stand-in
+used only by unit tests, which cannot reach the network."""
 from __future__ import annotations
 
 import hashlib
@@ -33,7 +33,7 @@ class GeminiEmbedder:
         if not s.gemini_api_key:
             raise RuntimeError("GEMINI_API_KEY is not set")
         self._client = genai.Client(api_key=s.gemini_api_key)
-        self.model = s.embedding_model
+        self.model = s.gemini_embedding_model
         self.dimensions = s.embedding_dimensions
 
     def embed(self, text: str, *, kind: str = "document") -> list[float]:
@@ -62,7 +62,7 @@ class VoyageEmbedder:
         s = get_settings()
         if not s.voyage_api_key:
             raise RuntimeError("VOYAGE_API_KEY is not set")
-        self.model = s.embedding_model
+        self.model = s.voyage_embedding_model
         self.dimensions = s.embedding_dimensions
         self._url = s.voyage_base_url.rstrip("/") + "/v1/embeddings"
         self._http = httpx.Client(timeout=30, headers={"Authorization": f"Bearer {s.voyage_api_key}"})
@@ -116,7 +116,12 @@ def set_embedder(e: Embedder | None) -> None:
 def get_embedder() -> Embedder:
     global _embedder
     if _embedder is None:
-        p = get_settings().embedding_provider
+        s = get_settings()
+        p = s.embedding_provider
+        if p == "auto":
+            p = "voyage" if s.voyage_api_key else "gemini" if s.gemini_api_key else "none"
+        if p == "none":
+            raise RuntimeError("No embedding provider configured: set VOYAGE_API_KEY or GEMINI_API_KEY")
         _embedder = (VoyageEmbedder() if p == "voyage" else GeminiEmbedder() if p == "gemini"
-                     else HashEmbedder(get_settings().embedding_dimensions))  # "local": offline, lexical
+                     else HashEmbedder(s.embedding_dimensions))  # "local": offline, lexical (tests only)
     return _embedder

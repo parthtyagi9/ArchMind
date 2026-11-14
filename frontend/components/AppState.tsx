@@ -1,29 +1,57 @@
 "use client";
-import { createContext, useCallback, useContext, useMemo, useState } from "react";
-import { runAgent } from "@/lib/agent";
-import { SCENARIOS, SEED_EVENTS, SEED_MEMORIES, USERS } from "@/lib/mock";
-import { buildAsk, buildWhy } from "@/lib/why";
-import type { AuditEvent, Memory, Run, Selection, Tab, ThreadItem, User, ViewId, Workspace } from "@/lib/types";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { api, ApiError, errorMessage, UNAUTHORIZED_EVENT } from "@/lib/api";
+import { invalidate } from "@/lib/cache";
+import type { Integrations, Me, PageId, Permission, Repo, Selection, Tab, Workspace } from "@/lib/types";
 
 export type SidebarPanel = "files" | "arch" | "gov";
+export type BootStatus = "loading" | "signed_out" | "ready" | "error";
+
+export interface Notice { kind: "error" | "ok"; text: string }
+export interface AskRequest { nonce: number; question: string; selection: Selection | null }
+export interface ComparePrefill { nonce: number; question: string; selection: Selection | null; repoId: string | null }
 
 interface AppState {
-  user: User;
-  setUserId: (id: string) => void;
+  status: BootStatus;
+  bootError: string | null;
+  retryBoot: () => void;
+  me: Me | null;
+  can: (p: Permission) => boolean;
+  signedIn: (me: Me) => void;
+  signOut: () => Promise<void>;
+  switchOrg: (orgId: string) => Promise<void>;
+  createOrg: (name: string) => Promise<void>;
+  notice: Notice | null;
+  setNotice: (n: Notice | null) => void;
+
+  pendingCount: number;
+  refreshPending: () => Promise<void>;
+
+  integrations: Integrations | null;
+  refreshIntegrations: () => Promise<void>;
+
+  repos: Repo[];
+  reposLoading: boolean;
+  reposError: string | null;
+  refreshRepos: () => Promise<void>;
+  upsertRepo: (r: Repo) => void;
+  removeRepoLocal: (id: string) => void;
 
   workspace: Workspace | null;
-  openWorkspace: (w: Workspace) => void;
+  repo: Repo | null; // the repo of the open workspace, if any
+  openRepo: (id: string) => void;
+  openLocal: (name: string, files: Record<string, string>) => void;
   closeWorkspace: () => void;
+  settingsOpen: boolean;
+  setSettingsOpen: (b: boolean) => void;
 
   tabs: Tab[];
   activeTabId: string | null;
   setActiveTabId: (id: string) => void;
   openFile: (path: string) => void;
-  openPage: (page: ViewId) => void;
+  openPage: (page: PageId) => void;
+  openArch: () => void;
   closeTab: (id: string) => void;
-  /** Compatibility shim: old screens call setView("memory") etc. */
-  setView: (v: ViewId) => void;
-
   sidebar: SidebarPanel;
   setSidebar: (p: SidebarPanel) => void;
 
@@ -32,70 +60,222 @@ interface AppState {
   pendingSelection: Selection | null;
   setPendingSelection: (s: Selection | null) => void;
   activeRange: Selection | null;
-  thread: ThreadItem[];
-  ask: (question: string, sel?: Selection | null) => string | null; // returns a note when it can't answer
+  setActiveRange: (s: Selection | null) => void;
+  askRequest: AskRequest | null;
+  requestAsk: (question: string, selection: Selection | null) => void;
 
-  memories: Memory[];
-  updateMemory: (id: string, fn: (m: Memory) => Memory) => void;
-  addMemory: (m: Memory) => void;
-  events: AuditEvent[];
-  log: (e: Omit<AuditEvent, "id" | "at">) => void;
-  runs: Run[];
-  addRun: (r: Run) => void;
-  selectedRunId: string | null;
-  setSelectedRunId: (id: string | null) => void;
-  selectedNode: string | null;
-  setSelectedNode: (id: string | null) => void;
   highlight: string[];
   setHighlight: (ids: string[]) => void;
+  showInArchitecture: (ids: string[]) => void;
+  selectedNode: string | null;
+  setSelectedNode: (id: string | null) => void;
+
   focusMemoryId: string | null;
-  setFocusMemoryId: (id: string | null) => void;
+  clearFocusMemory: () => void;
+  openMemory: (memoryId: string) => void;
+  selectedRunId: string | null;
+  openRun: (runId: string) => void;
+  comparePrefill: ComparePrefill | null;
+  openCompare: (p: { question: string; selection: Selection | null; repoId: string | null }) => void;
 }
 
 const Ctx = createContext<AppState | null>(null);
 
-export const useApp = () => {
+/** Use inside the signed-in app: `me` is guaranteed. */
+export function useApp(): AppState & { me: Me } {
   const c = useContext(Ctx);
   if (!c) throw new Error("useApp outside provider");
+  if (!c.me) throw new Error("useApp used before sign-in");
+  return c as AppState & { me: Me };
+}
+
+/** Use at the root / auth screen where `me` may be null. */
+export function useAppRaw(): AppState {
+  const c = useContext(Ctx);
+  if (!c) throw new Error("useAppRaw outside provider");
   return c;
-};
+}
 
-const nowLabel = () => {
-  const d = new Date();
-  return `${d.toISOString().slice(0, 10)} ${d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })}`;
+const PAGE_TITLES: Record<PageId, string> = {
+  memory: "Memory Inspector", approvals: "Approval Center", history: "Decision History", runs: "Agent Run Inspector", compare: "Memory Impact", settings: "Settings",
 };
+export const pageTitle = (p: PageId) => PAGE_TITLES[p];
 
-const PAGE_TITLES: Record<string, string> = { memory: "Memory Inspector", approvals: "Approval Center", history: "Decision History", runs: "Run Inspector", compare: "Memory Impact" };
-export const pageTitle = (p: ViewId) => PAGE_TITLES[p] ?? p;
+const REPO_POLL_MS = 1500;
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const [userId, setUserId] = useState("alice");
+  const [status, setStatus] = useState<BootStatus>("loading");
+  const [bootError, setBootError] = useState<string | null>(null);
+  const [bootTick, setBootTick] = useState(0);
+  const [me, setMe] = useState<Me | null>(null);
+  const [notice, setNotice] = useState<Notice | null>(null);
+  const [integrations, setIntegrations] = useState<Integrations | null>(null);
+  const [pendingCount, setPendingCount] = useState(0);
+
+  const [repos, setRepos] = useState<Repo[]>([]);
+  const [reposLoading, setReposLoading] = useState(false);
+  const [reposError, setReposError] = useState<string | null>(null);
+
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [tabs, setTabs] = useState<Tab[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const [sidebar, setSidebar] = useState<SidebarPanel>("files");
+
   const [memoryOn, setMemoryOn] = useState(true);
   const [pendingSelection, setPendingSelection] = useState<Selection | null>(null);
   const [activeRange, setActiveRange] = useState<Selection | null>(null);
-  const [thread, setThread] = useState<ThreadItem[]>([]);
-  const [memories, setMemories] = useState<Memory[]>(SEED_MEMORIES);
-  const [events, setEvents] = useState<AuditEvent[]>(SEED_EVENTS);
-  const [runs, setRuns] = useState<Run[]>(() => [runAgent(SCENARIOS[0], true, USERS[0], SEED_MEMORIES), runAgent(SCENARIOS[0], false, USERS[0], SEED_MEMORIES)]);
-  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
-  const [selectedNode, setSelectedNode] = useState<string | null>(null);
+  const [askRequest, setAskRequest] = useState<AskRequest | null>(null);
   const [highlight, setHighlight] = useState<string[]>([]);
+  const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [focusMemoryId, setFocusMemoryId] = useState<string | null>(null);
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const [comparePrefill, setComparePrefill] = useState<ComparePrefill | null>(null);
+  const nonce = useRef(0);
 
-  const user = USERS.find((u) => u.id === userId) ?? USERS[0];
+  // ---------- session-scoped resets
+  const resetWorkspaceState = useCallback(() => {
+    setWorkspace(null); setTabs([]); setActiveTabId(null); setSettingsOpen(false);
+    setPendingSelection(null); setActiveRange(null); setAskRequest(null); setHighlight([]);
+    setSelectedNode(null); setFocusMemoryId(null); setSelectedRunId(null); setComparePrefill(null);
+  }, []);
 
+  const loadRepos = useCallback(async () => {
+    setReposLoading(true);
+    setReposError(null);
+    try { setRepos(await api.repos()); }
+    catch (e) { setReposError(errorMessage(e)); }
+    finally { setReposLoading(false); }
+  }, []);
+
+  const refreshIntegrations = useCallback(async () => {
+    try { setIntegrations(await api.integrations()); } catch { /* non-fatal: status bar falls back to "unknown" */ }
+  }, []);
+
+  const meRef = useRef<Me | null>(null);
+  meRef.current = me;
+  const refreshPending = useCallback(async () => {
+    if (!meRef.current?.org.permissions.includes("approve_memory")) { setPendingCount(0); return; }
+    try { setPendingCount((await api.memories({ status: "pending" })).length); } catch { /* badge only; the Approval Center shows real errors */ }
+  }, []);
+
+  const afterSignIn = useCallback((m: Me) => {
+    meRef.current = m;
+    setMe(m);
+    setStatus("ready");
+    void loadRepos();
+    void refreshIntegrations();
+    void refreshPending();
+  }, [loadRepos, refreshIntegrations, refreshPending]);
+
+  // keep the pending-approval badge fresh
+  useEffect(() => {
+    if (status !== "ready") return;
+    const t = setInterval(() => void refreshPending(), 30_000);
+    return () => clearInterval(t);
+  }, [status, refreshPending]);
+
+  const signedOut = useCallback(() => {
+    setMe(null); setStatus("signed_out"); setRepos([]); setIntegrations(null); setPendingCount(0); resetWorkspaceState();
+  }, [resetWorkspaceState]);
+
+  // ---------- bootstrap: /auth/me then /repos
+  useEffect(() => {
+    let cancelled = false;
+    setStatus("loading");
+    api.me().then(
+      (m) => { if (!cancelled) afterSignIn(m); },
+      (e: unknown) => {
+        if (cancelled) return;
+        if (e instanceof ApiError && e.status === 401) { setStatus("signed_out"); return; }
+        setBootError(errorMessage(e));
+        setStatus("error");
+      },
+    );
+    return () => { cancelled = true; };
+  }, [bootTick, afterSignIn]);
+
+  // session expired mid-use
+  useEffect(() => {
+    const h = () => signedOut();
+    window.addEventListener(UNAUTHORIZED_EVENT, h);
+    return () => window.removeEventListener(UNAUTHORIZED_EVENT, h);
+  }, [signedOut]);
+
+  // ?auth_error= / ?connected=github from OAuth redirects
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const err = url.searchParams.get("auth_error");
+    const connected = url.searchParams.get("connected");
+    if (!err && !connected) return;
+    if (err) setNotice({ kind: "error", text: err });
+    else if (connected === "github") setNotice({ kind: "ok", text: "GitHub account linked. Private repositories you can read are now available." });
+    url.searchParams.delete("auth_error");
+    url.searchParams.delete("connected");
+    window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+  }, []);
+
+  // ---------- repo status polling (every 1.5s while indexing)
+  const upsertRepo = useCallback((r: Repo) => setRepos((rs) => (rs.some((x) => x.id === r.id) ? rs.map((x) => (x.id === r.id ? r : x)) : [r, ...rs])), []);
+  const removeRepoLocal = useCallback((id: string) => {
+    setRepos((rs) => rs.filter((x) => x.id !== id));
+    setWorkspace((w) => (w?.kind === "repo" && w.repoId === id ? null : w));
+    invalidate(`${id}|`);
+  }, []);
+
+  const indexingKey = repos.filter((r) => r.status === "indexing").map((r) => r.id).join(",");
+  useEffect(() => {
+    if (!indexingKey) return;
+    const ids = indexingKey.split(",");
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const tick = async () => {
+      await Promise.all(ids.map(async (id) => {
+        try {
+          const r = await api.repo(id);
+          if (!stopped) upsertRepo(r);
+        } catch (e) {
+          if (!stopped && e instanceof ApiError && e.status === 404) removeRepoLocal(id);
+        }
+      }));
+      if (!stopped) timer = setTimeout(tick, REPO_POLL_MS);
+    };
+    timer = setTimeout(tick, REPO_POLL_MS);
+    return () => { stopped = true; if (timer) clearTimeout(timer); };
+  }, [indexingKey, upsertRepo, removeRepoLocal]);
+
+  // ---------- auth actions
+  const signOut = useCallback(async () => {
+    try { await api.logout(); } catch { /* the cookie may already be gone; sign out locally regardless */ }
+    signedOut();
+  }, [signedOut]);
+
+  const switchOrg = useCallback(async (orgId: string) => {
+    const m = await api.switchOrg(orgId);
+    resetWorkspaceState();
+    setRepos([]);
+    afterSignIn(m);
+  }, [afterSignIn, resetWorkspaceState]);
+
+  const createOrg = useCallback(async (name: string) => {
+    const m = await api.createOrg(name);
+    resetWorkspaceState();
+    setRepos([]);
+    afterSignIn(m);
+  }, [afterSignIn, resetWorkspaceState]);
+
+  // ---------- workspace + tabs
   const focusTab = useCallback((t: Tab) => {
     setTabs((ts) => (ts.some((x) => x.id === t.id) ? ts : [...ts, t]));
     setActiveTabId(t.id);
   }, []);
 
   const openFile = useCallback((path: string) => focusTab({ id: `file:${path}`, kind: "file", path }), [focusTab]);
-  const openPage = useCallback((page: ViewId) => focusTab(page === "explorer" ? { id: "arch", kind: "arch" } : { id: `page:${page}`, kind: "page", page }), [focusTab]);
-  const setView = useCallback((v: ViewId) => { if (v !== "assistant") openPage(v); }, [openPage]);
+  const openArch = useCallback(() => { setSidebar("arch"); focusTab({ id: "arch", kind: "arch" }); }, [focusTab]);
+  const openPage = useCallback((page: PageId) => {
+    if (!workspace) { if (page === "settings") setSettingsOpen(true); return; }
+    focusTab({ id: `page:${page}`, kind: "page", page });
+  }, [focusTab, workspace]);
 
   const closeTab = useCallback((id: string) => {
     setTabs((ts) => {
@@ -106,44 +286,50 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  const openWorkspace = useCallback((w: Workspace) => {
+  const startWorkspace = useCallback((w: Workspace) => {
+    resetWorkspaceState();
     setWorkspace(w);
-    setThread([]);
-    setActiveRange(null);
-    setPendingSelection(null);
-    const first = ["services/auth/src/validate.ts", "README.md"].find((p) => p in w.files) ?? Object.keys(w.files).sort()[0];
-    const t: Tab[] = [];
-    if (first) t.push({ id: `file:${first}`, kind: "file", path: first });
-    setTabs(t);
-    setActiveTabId(t[0]?.id ?? null);
     setSidebar("files");
+  }, [resetWorkspaceState]);
+  const openRepo = useCallback((id: string) => startWorkspace({ kind: "repo", repoId: id }), [startWorkspace]);
+  const openLocal = useCallback((name: string, files: Record<string, string>) => {
+    startWorkspace({ kind: "local", name, files });
+    const first = ["README.md"].find((p) => p in files) ?? Object.keys(files).sort()[0];
+    if (first) { setTabs([{ id: `file:${first}`, kind: "file", path: first }]); setActiveTabId(`file:${first}`); }
+  }, [startWorkspace]);
+  const closeWorkspace = useCallback(() => resetWorkspaceState(), [resetWorkspaceState]);
+
+  const requestAsk = useCallback((question: string, selection: Selection | null) => {
+    nonce.current += 1;
+    setAskRequest({ nonce: nonce.current, question, selection });
+    setActiveRange(selection);
+    setPendingSelection(null);
   }, []);
 
-  const closeWorkspace = useCallback(() => { setWorkspace(null); setTabs([]); setActiveTabId(null); setThread([]); setActiveRange(null); }, []);
+  const showInArchitecture = useCallback((ids: string[]) => { setHighlight(ids); openArch(); }, [openArch]);
+  const openMemory = useCallback((id: string) => { setFocusMemoryId(id); openPage("memory"); }, [openPage]);
+  const openRun = useCallback((id: string) => { setSelectedRunId(id); openPage("runs"); }, [openPage]);
+  const openCompare = useCallback((p: { question: string; selection: Selection | null; repoId: string | null }) => {
+    nonce.current += 1;
+    setComparePrefill({ nonce: nonce.current, ...p });
+    openPage("compare");
+  }, [openPage]);
 
-  const updateMemory = useCallback((id: string, fn: (m: Memory) => Memory) => setMemories((ms) => ms.map((m) => (m.id === id ? fn(m) : m))), []);
-  const addMemory = useCallback((m: Memory) => setMemories((ms) => [m, ...ms]), []);
-  const log = useCallback((e: Omit<AuditEvent, "id" | "at">) => setEvents((es) => [{ ...e, id: `e${es.length + 1}_${Date.now()}`, at: nowLabel() }, ...es]), []);
-  const addRun = useCallback((r: Run) => setRuns((rs) => [r, ...rs]), []);
-
-  const ask = useCallback((question: string, sel?: Selection | null) => {
-    const built = sel ? buildWhy(sel, question, user, memories, memoryOn) : buildAsk(question, user, memories, memoryOn);
-    if (!built) return "The preview answers two scripted architecture questions (Redis caching, token validation in the gateway). Select code in the editor to ask why it exists.";
-    setThread((t) => [...t, built.item]);
-    setRuns((rs) => [built.run, ...rs]);
-    setHighlight(built.item.final.affected);
-    setActiveRange(sel ?? null);
-    setPendingSelection(null);
-    log({ type: "agent.decision", actor: user.name, detail: `${built.run.id}: ${built.item.final.decision} (${built.item.final.memoryRefs.length ? "memory-informed" : "no memory influence"})` });
-    return null;
-  }, [user, memories, memoryOn, log]);
+  const can = useCallback((p: Permission) => !!me?.org.permissions.includes(p), [me]);
+  const repo = workspace?.kind === "repo" ? repos.find((r) => r.id === workspace.repoId) ?? null : null;
 
   const value = useMemo<AppState>(() => ({
-    user, setUserId, workspace, openWorkspace, closeWorkspace, tabs, activeTabId, setActiveTabId, openFile, openPage, closeTab, setView,
-    sidebar, setSidebar, memoryOn, setMemoryOn, pendingSelection, setPendingSelection, activeRange, thread, ask,
-    memories, updateMemory, addMemory, events, log, runs, addRun, selectedRunId, setSelectedRunId, selectedNode, setSelectedNode, highlight, setHighlight, focusMemoryId, setFocusMemoryId,
-  }), [user, workspace, openWorkspace, closeWorkspace, tabs, activeTabId, openFile, openPage, closeTab, setView, sidebar, memoryOn, pendingSelection, activeRange, thread, ask,
-    memories, updateMemory, addMemory, events, log, runs, addRun, selectedRunId, selectedNode, highlight, focusMemoryId]);
+    status, bootError, retryBoot: () => setBootTick((t) => t + 1), me, can, signedIn: afterSignIn, signOut, switchOrg, createOrg, notice, setNotice,
+    pendingCount, refreshPending, integrations, refreshIntegrations, repos, reposLoading, reposError, refreshRepos: loadRepos, upsertRepo, removeRepoLocal,
+    workspace, repo, openRepo, openLocal, closeWorkspace, settingsOpen, setSettingsOpen,
+    tabs, activeTabId, setActiveTabId, openFile, openPage, openArch, closeTab, sidebar, setSidebar,
+    memoryOn, setMemoryOn, pendingSelection, setPendingSelection, activeRange, setActiveRange, askRequest, requestAsk,
+    highlight, setHighlight, showInArchitecture, selectedNode, setSelectedNode,
+    focusMemoryId, clearFocusMemory: () => setFocusMemoryId(null), openMemory, selectedRunId, openRun, comparePrefill, openCompare,
+  }), [status, bootError, me, can, afterSignIn, signOut, switchOrg, createOrg, notice, pendingCount, refreshPending, integrations, refreshIntegrations, repos, reposLoading, reposError, loadRepos,
+    upsertRepo, removeRepoLocal, workspace, repo, openRepo, openLocal, closeWorkspace, settingsOpen, tabs, activeTabId, openFile, openPage, openArch, closeTab, sidebar,
+    memoryOn, pendingSelection, activeRange, askRequest, requestAsk, highlight, showInArchitecture, selectedNode, focusMemoryId, openMemory, selectedRunId, openRun,
+    comparePrefill, openCompare]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

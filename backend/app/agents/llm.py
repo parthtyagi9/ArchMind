@@ -1,38 +1,38 @@
-"""LLM access with structured (schema-validated) outputs. The agent never receives free text it acts on:
-every decision is parsed into a Pydantic model, then checked again by the deterministic policy layer."""
+"""LLM access with structured (schema-validated) outputs. The reasoning agent never returns free text the system acts
+on: every answer is parsed into a Pydantic model and then sanitized against the evidence that was actually retrieved."""
 from __future__ import annotations
 
 import logging
 import time
 
 import httpx
-from typing import Literal, Optional, Protocol, TypeVar
+from typing import Literal, Protocol, TypeVar
 
 from pydantic import BaseModel, Field, ValidationError
 
 from app.config import get_settings
 
-log = logging.getLogger("recallops.llm")
+log = logging.getLogger("archmind.llm")
 T = TypeVar("T", bound=BaseModel)
 
-FailureCategory = Literal["secret_access_denied", "network", "kms", "application_bug", "capacity", "unknown"]
+Verdict = Literal["proceed", "proceed_with_constraints", "needs_architecture_review", "insufficient_evidence"]
 
 
-class Classification(BaseModel):
-    failure_category: FailureCategory
-    affected_service: str
-    summary: str = Field(description="One-sentence neutral summary of the failure")
-    search_query: str = Field(description="Short description to search historical incident memory with")
+class LLMConstraint(BaseModel):
+    text: str = Field(description="A constraint on the recommendation that comes from an approved organizational memory")
+    memory_ref: str = Field(description='The exact memory_ref (e.g. "mem_ab12@v2") of the memory that imposes it')
 
 
-class PlanDecision(BaseModel):
-    decision: Literal["call_tool", "escalate"]
-    tool_name: Optional[str] = Field(None, description="Exact tool name from the catalog when decision=call_tool")
-    service: Optional[str] = None
-    hypothesis: str = Field(description="Current best explanation of the root cause")
-    rationale: str = Field(description="Why this next action, citing evidence")
-    memory_ids_used: list[str] = Field(default_factory=list,
-                                       description="memory_id values of retrieved memories that influenced this decision")
+class LLMAnswer(BaseModel):
+    headline: str = Field(description="One-line title of the finding")
+    explanation: list[str] = Field(description="2-4 short paragraphs explaining why the code/system is the way it is, using only the evidence")
+    verdict: Verdict = Field(description="Can the developer change this as they likely intend? See rules in the system prompt")
+    recommendation: str = Field(description="Concrete guidance for someone about to change or extend this")
+    constraints: list[LLMConstraint] = Field(default_factory=list)
+    risks: list[str] = Field(default_factory=list)
+    evidence_refs: list[str] = Field(description="refs of the evidence items you actually relied on")
+    affected_components: list[str] = Field(default_factory=list, description="component ids from the provided list")
+    confidence: Literal["low", "medium", "high"]
 
 
 class LLM(Protocol):
@@ -108,9 +108,5 @@ def set_llm(llm: LLM | None) -> None:
 def get_llm() -> LLM:
     global _llm
     if _llm is None:
-        if get_settings().llm_provider == "rules":
-            from app.agents.rules_llm import RuleBasedLLM
-            _llm = RuleBasedLLM()
-        else:
-            _llm = GeminiLLM()
+        _llm = GeminiLLM()
     return _llm
