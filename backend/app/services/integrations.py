@@ -28,9 +28,11 @@ def atlassian_config(org_id: str) -> dict | None:
 def atlassian_status(org_id: str) -> dict:
     c = atlassian_config(org_id)
     if not c:
-        return {"connected": False, "base_url": None, "email": None, "jira_projects": [], "confluence_spaces": [], "status": None, "error": None}
+        return {"connected": False, "base_url": None, "email": None, "jira_projects": [], "confluence_spaces": [], "status": None, "error": None,
+                "jira_available": False, "confluence_available": False}
     return {"connected": True, "base_url": c["base_url"], "email": c["email"], "jira_projects": c.get("jira_projects", []),
-            "confluence_spaces": c.get("confluence_spaces", []), "status": c.get("status"), "error": c.get("error")}
+            "confluence_spaces": c.get("confluence_spaces", []), "status": c.get("status"), "error": c.get("error"),
+            "jira_available": c.get("jira_ok", True), "confluence_available": c.get("confluence_ok", True)}
 
 
 def atlassian_client(org_id: str) -> tuple[dict, Atlassian] | None:

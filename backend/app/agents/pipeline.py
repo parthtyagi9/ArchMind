@@ -431,7 +431,7 @@ def _unique_evidence(ctx: Ctx) -> list[dict]:
             if ref in seen:
                 ref = f"{ref} ({aid})"
             seen.add(ref)
-            out.append({**f, "ref": ref})
+            out.append({**f, "ref": ref, "source_agent": aid})
     return out
 
 
@@ -446,8 +446,19 @@ def reason(ctx: Ctx, memory_enabled: bool) -> tuple[dict, str]:
     """One reasoning pass over the shared evidence. Returns (Answer, model name)."""
     evidence = _unique_evidence(ctx)
     memories = [_memory_view(d) for d in ctx.memdocs] if memory_enabled else []
+    # Connection/retrieval status is operational evidence. Without it the model
+    # can mistake externally fetched issues for references found in repo files.
+    latest = get_db().agent_runs.find_one({"_id": ctx.run["_id"], "tenant_id": ctx.p.org_id}, {"agents": 1}) or ctx.run
+    runtime = {"assistant": "ArchMind", "repository_under_analysis": ctx.run.get("repo_name"), "sources": []}
+    for aid in ("github", "jira", "confluence"):
+        agent = latest["agents"][aid]
+        runtime["sources"].append({"source": aid, "status": agent["status"], "findings_retrieved": len(agent["findings"]),
+                                   "completed_tool_calls": sum(t["status"] == "done" for t in agent["tools"]),
+                                   "failed_tool_calls": sum(t["status"] == "error" for t in agent["tools"]),
+                                   "skip_reason": agent["summary"] if agent["status"] == "skipped" else None})
     prompt = prompts.reasoning_prompt(kind=ctx.kind, question=ctx.question, selection=ctx.selection, file_context=ctx.file_context,
-                                      components=ctx.components, evidence=evidence, memories=memories, memory_enabled=memory_enabled)
+                                      components=ctx.components, evidence=evidence, memories=memories, memory_enabled=memory_enabled,
+                                      runtime_context=runtime)
     llm = get_llm()
     raw = llm.structured(prompts.SYSTEM, prompt, LLMAnswer)
     return sanitize(raw, evidence={e["ref"] for e in evidence}, memory_refs={m["memory_ref"] for m in memories},

@@ -175,7 +175,7 @@ interface AuditEvent {
 
 | Method | Path | Body | Returns | Needs |
 |---|---|---|---|---|
-| GET | `/integrations` | – | `{ github: { connected, login, oauth_configured }, atlassian: { connected, base_url, email, jira_projects: string[], confluence_spaces: string[], status: "ok"|"error"|null, error: string|null }, public_sources: PublicSource[] }` | any |
+| GET | `/integrations` | – | `{ github: { connected, login, oauth_configured }, atlassian: { connected, base_url, email, jira_projects: string[], confluence_spaces: string[], status: "ok"|"error"|null, error: string|null, jira_available: boolean, confluence_available: boolean }, public_sources: PublicSource[] }` | any |
 | POST | `/integrations/sources` | `{ url, repo_id? }` | `PublicSource` after checking anonymous access. Detects Jira project/issue and Confluence space/page/share links. No credentials needed. Reconnecting the same canonical URL and repository updates the existing source. | `manage_integrations` |
 | DELETE | `/integrations/sources/{source_id}` | – | `{ ok: true }` (tenant-scoped; 404 for missing/foreign sources) | `manage_integrations` |
 | PUT | `/integrations/atlassian` | `{ base_url ("https://x.atlassian.net"), email, api_token, jira_projects?: string[], confluence_spaces?: string[] }` | same as GET `atlassian` (validates credentials against Jira and Confluence first; 502 with reason if invalid). The token is stored encrypted and never returned. | `manage_integrations` |

@@ -199,6 +199,8 @@ export interface AtlassianInfo {
   confluence_spaces: string[];
   status: "ok" | "error" | null;
   error: string | null;
+  jira_available: boolean;
+  confluence_available: boolean;
 }
 export interface Integrations {
   github: { connected: boolean; login: string | null; oauth_configured: boolean };

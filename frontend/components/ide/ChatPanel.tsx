@@ -14,13 +14,23 @@ const nextKey = () => `q${Date.now()}_${++keySeq}`;
 const fromRun = (r: Run): ThreadItem => ({ key: r.id, question: r.question, selection: r.selection, runId: r.id, run: r, submitError: null });
 
 export function ChatPanel() {
-  const { workspace, repo, memoryOn, setMemoryOn, pendingSelection, setPendingSelection, askRequest, can, me, openPage } = useApp();
+  const { workspace, repo, memoryOn, setMemoryOn, pendingSelection, setPendingSelection, askRequest, can, me, openPage, integrations, refreshIntegrations } = useApp();
   const repoId = workspace?.kind === "repo" ? workspace.repoId : null;
   const isLocal = workspace?.kind === "local";
   const [items, setItems] = useState<ThreadItem[]>([]);
   const [text, setText] = useState("");
   const bottom = useRef<HTMLDivElement>(null);
   const canAsk = can("ask");
+  const sources = integrations?.public_sources.filter((s) => !s.repo_id || s.repo_id === repoId) ?? [];
+  const sourceConnected = (kind: "jira" | "confluence") => sources.some((s) => s.kind === kind)
+    || !!(integrations?.atlassian.connected && integrations.atlassian[`${kind}_available`]);
+
+  useEffect(() => {
+    void refreshIntegrations();
+    const refresh = () => void refreshIntegrations();
+    window.addEventListener("focus", refresh);
+    return () => window.removeEventListener("focus", refresh);
+  }, [refreshIntegrations]);
 
   // Prior runs for this repository, so the thread persists across reloads.
   const history = useAsync(() => api.runs({ repo_id: repoId ?? undefined, limit: 30 }), [repoId], repoId !== null);
@@ -85,6 +95,14 @@ export function ChatPanel() {
           <span className={memoryOn ? "text-ok" : "text-muted"}>Governed memory {memoryOn ? "on" : "off"}</span>
         </button>
       </div>
+
+      {integrations && <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line px-3 py-1.5 text-[11px]" aria-label="Sources for this workspace">
+        {(["jira", "confluence"] as const).map((kind) => <button key={kind} onClick={() => openPage("settings")}
+          title="Manage sources for this workspace in Settings → Integrations" className={sourceConnected(kind) ? "text-ok hover:underline" : "text-muted hover:text-brand hover:underline"}>
+          {kind === "jira" ? "Jira" : "Confluence"} {sourceConnected(kind) ? "connected" : "not connected"}
+        </button>)}
+        {can("manage_integrations") && (!sourceConnected("jira") || !sourceConnected("confluence")) && <button onClick={() => openPage("settings")} className="ml-auto text-brand hover:underline">Connect</button>}
+      </div>}
 
       {isLocal && <InfoBanner tone="info" className="m-3 mb-0">Local files: GitHub provenance unavailable. The GitHub agent will report itself skipped; Jira, Confluence and Memory still run.</InfoBanner>}
       {repo && repo.status !== "ready" && <InfoBanner className="m-3 mb-0">This repository is {repo.status === "indexing" ? "still indexing" : "not indexed"}. Answers will have less evidence until indexing finishes.</InfoBanner>}

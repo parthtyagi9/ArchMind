@@ -145,6 +145,45 @@ def test_subagents_gather_real_evidence_and_follow_ticket_keys_from_git_history(
     assert run["orchestrator"]["plan"] == ["github", "jira", "confluence", "memory"]
 
 
+def test_access_questions_receive_live_source_provenance_and_missing_connection_status(world, monkeypatch, env):
+    import json
+
+    repo_id = connect_repo(world, monkeypatch)
+    connect_atlassian(world)
+    env["db"].integrations.update_one({"_id": f"{world['owner_p'].org_id}:atlassian"}, {"$set": {"confluence_ok": False}})
+    pipeline.start_run(world["member_p"], kind="ask", question="can you see jira issues and confluence docs AUTH-311",
+                       repo_id=repo_id, memory_enabled=False, background=False)
+    prompt = env["llm"].prompts[-1]
+    runtime = json.loads(prompt.split("<runtime_context>\n")[1].split("\n</runtime_context>")[0])
+    sources = {s["source"]: s for s in runtime["sources"]}
+    assert runtime["assistant"] == "ArchMind" and runtime["repository_under_analysis"] == "acme/pay"
+    assert sources["jira"]["status"] == "done" and sources["jira"]["findings_retrieved"] == 1
+    assert sources["jira"]["completed_tool_calls"] > 0
+    assert sources["confluence"]["status"] == "skipped" and sources["confluence"]["findings_retrieved"] == 0
+    assert "not connected" in sources["confluence"]["skip_reason"]
+    evidence = json.loads(prompt.split("<untrusted_evidence>\n")[1].split("\n</untrusted_evidence>")[0])
+    issue = next(e for e in evidence if e["ref"] == "AUTH-311")
+    assert issue["source_agent"] == "jira" and issue["url"] == "https://x.atlassian.net/browse/AUTH-311"
+    assert "token" not in json.dumps(runtime).lower()
+
+
+def test_reasoning_distinguishes_failed_source_from_absent_connection(world, monkeypatch, env):
+    import json
+
+    repo_id = connect_repo(world, monkeypatch)
+    connect_atlassian(world)
+
+    class FailedJira(FakeAtlassian):
+        def jira_search(self, *a, **k):
+            raise atl_mod.AtlassianError("Authentication expired", 401)
+
+    monkeypatch.setattr(atl_mod, "get_atlassian", lambda cfg, token: FailedJira())
+    run_sync(world["member_p"], repo_id)
+    runtime = json.loads(env["llm"].prompts[-1].split("<runtime_context>\n")[1].split("\n</runtime_context>")[0])
+    jira = next(s for s in runtime["sources"] if s["source"] == "jira")
+    assert jira["status"] == "error" and jira["failed_tool_calls"] > 0 and jira["skip_reason"] is None
+
+
 def test_unconnected_sources_are_skipped_honestly(world, monkeypatch):
     repo_id = connect_repo(world, monkeypatch)
     run = run_sync(world["member_p"], repo_id)               # no Atlassian connected
