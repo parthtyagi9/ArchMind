@@ -1,99 +1,129 @@
 """Memory persistence. Memories are immutable versions grouped by a lineage `memory_id`.
-Exactly one version per lineage may be `active` (enforced by a partial unique index)."""
+Exactly one version per lineage may be `active` (enforced by a partial unique index on Atlas).
+
+Lifecycle: pending -> active | rejected ; active -> superseded (by a correction) | invalidated (revoked) ;
+any -> purged (tombstone). Only `active`, unexpired, in-scope versions are ever retrievable."""
 from __future__ import annotations
 
-import uuid
 from datetime import datetime, timedelta
 from typing import Any
 
 from app.config import get_settings
-from app.db import get_db, utcnow
+from app.db import NEVER, get_db, iso, new_id, utcnow
+from app.deps import Principal
 from app.memory.embeddings import get_embedder
 
-# Status lifecycle: active -> superseded (by a correction) | invalidated (logical forget) | purged (tombstone)
-ACTIVE, SUPERSEDED, INVALIDATED, PURGED = "active", "superseded", "invalidated", "purged"
-
-PUBLIC_FIELDS_EXCLUDE = {"embedding": 0}
+PENDING, ACTIVE, SUPERSEDED, INVALIDATED, REJECTED, PURGED = "pending", "active", "superseded", "invalidated", "rejected", "purged"
+SCOPES = ("org", "repo", "team")
+TYPES = ("architecture_decision", "bug_resolution", "repository_convention", "code_ownership", "engineering_preference",
+         "workaround", "agent_experience")
+AUTHORITIES = ("agent_observed", "human", "verified")
 
 
 def embedding_text(doc: dict) -> str:
-    """What gets embedded: the narrative plus key structured facts."""
-    parts = [doc.get("content", ""), f"service {doc.get('service', '')}", f"error {doc.get('error_code', '')}",
-             f"resolution {doc.get('resolution_action', '')}"]
-    return " | ".join(p for p in parts if p)
+    return f"{doc['title']}. {doc['content']} | type {doc['memory_type'].replace('_', ' ')} | components {', '.join(doc.get('components') or [])}"
 
 
-def create_memory(*, tenant_id: str, content: str, service: str, error_code: str, resolution_action: str | None,
-                  outcome: str, memory_type: str = "incident_resolution", confidence: float = 0.8,
-                  verification_status: str = "unverified", source_incident_id: str | None = None,
-                  source_run_id: str | None = None, created_by: str = "system", expires_at: datetime | None = None,
-                  resolution_params: dict | None = None, memory_id: str | None = None, version: int = 1,
-                  supersedes: str | None = None, status: str = ACTIVE, now: datetime | None = None) -> dict:
-    now = now or utcnow()
+def expiry_from_days(days: int | None) -> datetime:
+    return NEVER if not days else utcnow() + timedelta(days=days)
+
+
+def create_version(*, tenant_id: str, title: str, content: str, memory_type: str, scope: str, team: str | None, repo_id: str | None,
+                   repo_name: str | None, components: list[str], source_refs: list[dict], authority: str, status: str,
+                   created_by: dict, approved_by: dict | None = None, expires_at: datetime | None = None,
+                   memory_id: str | None = None, version: int = 1, supersedes: str | None = None) -> dict:
+    now = utcnow()
     doc: dict[str, Any] = {
-        "_id": f"memv_{uuid.uuid4().hex[:16]}",
-        "memory_id": memory_id or f"mem_{uuid.uuid4().hex[:12]}",
-        "version": version,
-        "supersedes": supersedes,
-        "tenant_id": tenant_id,
-        "memory_type": memory_type,
-        "service": service,
-        "error_code": error_code,
-        "content": content,
-        "resolution_action": resolution_action,
-        "resolution_params": resolution_params or {},
-        "outcome": outcome,
-        "confidence": confidence,
-        "verification_status": verification_status,
-        "verification_count": 1 if verification_status == "verified" else 0,
-        "status": status,
-        "source_incident_id": source_incident_id,
-        "source_run_id": source_run_id,
-        "created_by": created_by,
-        "created_at": now,
-        "updated_at": now,
-        "expires_at": expires_at or (now + timedelta(days=get_settings().default_memory_ttl_days)),
-        "retrieval_count": 0,
-        "last_retrieved_at": None,
-        "embedding_model": get_settings().embedding_model,
+        "_id": new_id("memv"), "memory_id": memory_id or new_id("mem"), "version": version, "supersedes": supersedes,
+        "tenant_id": tenant_id, "title": title.strip()[:160], "content": content.strip(), "memory_type": memory_type, "scope": scope,
+        "team": team if scope == "team" else None, "repo_id": repo_id if scope == "repo" else None, "repo_name": repo_name if scope == "repo" else None,
+        "components": components, "source_refs": source_refs, "authority": authority, "status": status,
+        "created_by": created_by, "approved_by": approved_by, "created_at": now, "updated_at": now,
+        "expires_at": expires_at or expiry_from_days(get_settings().default_memory_ttl_days),
+        "retrieval_count": 0, "last_retrieved_at": None,
     }
-    doc["embedding"] = get_embedder().embed(embedding_text(doc), kind="document")
+    if status == ACTIVE:
+        attach_embedding(doc)
     get_db().memories.insert_one(doc)
     return doc
 
 
-def get_version(tenant_id: str, version_id: str) -> dict | None:
-    # tenant_id is ALWAYS part of the lookup: a foreign id simply does not exist for this caller.
-    return get_db().memories.find_one({"_id": version_id, "tenant_id": tenant_id}, PUBLIC_FIELDS_EXCLUDE)
+def attach_embedding(doc: dict) -> None:
+    emb = get_embedder()
+    doc["embedding"] = emb.embed(embedding_text(doc), kind="document")
+    doc["embedding_model"] = getattr(emb, "model", "unknown")
 
 
-def get_active(tenant_id: str, memory_id: str) -> dict | None:
-    return get_db().memories.find_one({"memory_id": memory_id, "tenant_id": tenant_id, "status": ACTIVE})
+# ------------------------------------------------------------------ reads
+def lineage(tenant_id: str, memory_id: str) -> list[dict]:
+    return list(get_db().memories.find({"memory_id": memory_id, "tenant_id": tenant_id}, {"embedding": 0}).sort("version", 1))
 
 
-def history(tenant_id: str, memory_id: str) -> list[dict]:
-    return list(get_db().memories.find({"memory_id": memory_id, "tenant_id": tenant_id},
-                                       PUBLIC_FIELDS_EXCLUDE).sort("version", 1))
+def current(tenant_id: str, memory_id: str, status: str | None = None) -> dict | None:
+    q: dict[str, Any] = {"memory_id": memory_id, "tenant_id": tenant_id}
+    if status:
+        q["status"] = status
+    docs = list(get_db().memories.find(q).sort("version", -1).limit(1))
+    return docs[0] if docs else None
 
 
-def list_memories(tenant_id: str, include_inactive: bool = True) -> list[dict]:
-    q: dict[str, Any] = {"tenant_id": tenant_id}
-    if not include_inactive:
-        q["status"] = ACTIVE
-    return list(get_db().memories.find(q, PUBLIC_FIELDS_EXCLUDE).sort([("memory_id", 1), ("version", 1)]))
+def representatives(tenant_id: str) -> list[dict]:
+    """One document per lineage: the active version if there is one, otherwise the newest."""
+    best: dict[str, dict] = {}
+    for d in get_db().memories.find({"tenant_id": tenant_id}, {"embedding": 0}).sort("version", 1):
+        cur = best.get(d["memory_id"])
+        if cur is None or d["status"] == ACTIVE or (cur["status"] != ACTIVE and d["version"] > cur["version"]):
+            best[d["memory_id"]] = d
+    return list(best.values())
 
 
-def find_equivalent_active(tenant_id: str, service: str, error_code: str, resolution_action: str) -> dict | None:
-    now = utcnow()
-    return get_db().memories.find_one({"tenant_id": tenant_id, "status": ACTIVE, "service": service,
-                                       "error_code": error_code, "resolution_action": resolution_action,
-                                       "expires_at": {"$gt": now}})
+def is_expired(doc: dict, now: datetime | None = None) -> bool:
+    exp = doc["expires_at"]
+    if exp.tzinfo is None:
+        exp = exp.replace(tzinfo=(now or utcnow()).tzinfo)
+    return exp <= (now or utcnow())
 
 
-def mark_retrieved(version_ids: list[str], tenant_id: str, run_id: str | None) -> None:
-    if not version_ids:
-        return
-    get_db().memories.update_many({"_id": {"$in": version_ids}, "tenant_id": tenant_id},
-                                  {"$inc": {"retrieval_count": 1}, "$set": {"last_retrieved_at": utcnow()},
-                                   "$push": {"retrieval_log": {"$each": [{"run_id": run_id, "at": utcnow()}],
-                                                               "$slice": -20}}})
+def effective_status(doc: dict) -> str:
+    return "expired" if doc["status"] == ACTIVE and is_expired(doc) else doc["status"]
+
+
+def exclusion_reason(doc: dict, p: Principal, repo_id: str | None = None) -> str | None:
+    """Why an agent acting for `p` would NOT retrieve this memory (None = eligible). Mirrors governance_filter."""
+    s = effective_status(doc)
+    if s != ACTIVE:
+        return {"pending": "pending approval", "superseded": "superseded by a newer version", "invalidated": "revoked",
+                "rejected": "rejected", "purged": "purged", "expired": "expired"}[s]
+    if doc["scope"] == "team" and doc.get("team") != p.team:
+        return f"scoped to team {doc.get('team')}"
+    if doc["scope"] == "repo" and repo_id is not None and doc.get("repo_id") != repo_id:
+        return f"scoped to repository {doc.get('repo_name')}"
+    return None
+
+
+def visible_filter(p: Principal) -> dict:
+    """Which memories `p` may see in the management UI (distinct from what an agent may retrieve)."""
+    base: dict[str, Any] = {"tenant_id": p.org_id}
+    if p.role in ("admin", "owner"):
+        return base
+    return {"$and": [base, {"$or": [{"scope": {"$in": ["org", "repo"]}}, {"scope": "team", "team": p.team}, {"created_by.id": p.user_id}]},
+                     {"$or": [{"status": {"$ne": PENDING}}, {"created_by.id": p.user_id}]}]}
+
+
+def to_api(doc: dict, p: Principal, *, history: list[dict] | None = None, repo_id: str | None = None) -> dict:
+    exp = doc["expires_at"]
+    out = {
+        "memory_id": doc["memory_id"], "version": doc["version"], "version_id": doc["_id"], "title": doc.get("title", ""),
+        "content": doc.get("content", ""), "memory_type": doc["memory_type"], "status": effective_status(doc), "scope": doc["scope"],
+        "team": doc.get("team"), "repo_id": doc.get("repo_id"), "repo_name": doc.get("repo_name"), "authority": doc["authority"],
+        "components": doc.get("components", []), "source_refs": doc.get("source_refs", []),
+        "created_by": doc["created_by"], "approved_by": doc.get("approved_by"), "created_at": iso(doc["created_at"]),
+        "updated_at": iso(doc["updated_at"]), "expires_at": None if exp.year >= 9999 else iso(exp),
+        "retrieval_count": doc.get("retrieval_count", 0),
+    }
+    reason = exclusion_reason(doc, p, repo_id)
+    out["eligible"] = reason is None
+    out["exclusion_reason"] = reason
+    if history is not None:
+        out["history"] = [to_api(h, p) for h in history]
+    return out
