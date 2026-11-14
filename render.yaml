@@ -32,11 +32,10 @@ services:
         sync: false
       - key: SESSION_SECRET
         generateValue: true
+      # Public address of the frontend (cookies are Secure on https; GitHub OAuth callback lives here).
+      # Render's fromService "host" is the private-network name, so the public URL is set explicitly.
       - key: FRONTEND_ORIGIN
-        fromService:
-          type: web
-          name: archmind-web
-          property: host
+        value: https://archmind-web.onrender.com
 
   - type: web
     name: archmind-web
@@ -50,8 +49,6 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "22.12.0"
+      # Public backend URL (free services cannot receive private-network traffic).
       - key: BACKEND_URL
-        fromService:
-          type: web
-          name: archmind-api
-          property: host
+        value: https://archmind-api-1ppo.onrender.com
