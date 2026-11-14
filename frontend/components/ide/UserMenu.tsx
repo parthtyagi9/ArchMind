@@ -1,9 +1,10 @@
 "use client";
-import { Check, LogOut, Repeat, Settings } from "lucide-react";
+import { Check, LogOut, Moon, Repeat, Settings, Sun } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useApp } from "@/components/AppState";
 import { Badge, ErrorBanner, cn } from "@/components/ui";
 import { errorMessage } from "@/lib/api";
+import { currentTheme, setTheme, type Theme } from "@/lib/theme";
 
 const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]?.toUpperCase()).join("") || "?";
 
@@ -13,6 +14,9 @@ export function UserMenu({ popover = "right" }: { popover?: "right" | "below" })
   const [orgs, setOrgs] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [theme, setThemeState] = useState<Theme>("dark");
+  useEffect(() => setThemeState(currentTheme()), []);
+  const toggleTheme = () => { const t: Theme = theme === "dark" ? "light" : "dark"; setTheme(t); setThemeState(t); };
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -52,6 +56,7 @@ export function UserMenu({ popover = "right" }: { popover?: "right" | "below" })
           </div>
           <div className="my-1 h-px bg-line" />
           <MenuItem icon={Settings} onClick={() => { setOpen(false); openPage("settings"); }}>Settings</MenuItem>
+          <MenuItem icon={theme === "dark" ? Sun : Moon} onClick={toggleTheme}>{theme === "dark" ? "Light mode" : "Dark mode"}</MenuItem>
           <MenuItem icon={Repeat} onClick={() => setOrgs((o) => !o)}>Switch organization</MenuItem>
           {orgs && (
             <div className="mb-1 ml-3 border-l border-line pl-1">

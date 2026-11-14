@@ -12,6 +12,7 @@ from app.integrations.github import GitHubError, get_github_client
 from app.memory import governance
 from app.memory import repository as mrepo
 from app.services import integrations as integ
+from app.archmap import service as archmap
 from app.services import groups, provenance, repos
 
 log = logging.getLogger("archmind.api.repos")
@@ -84,6 +85,29 @@ def _memory_counts(p: Principal, repo_id: str) -> dict[str, int]:
         for c in m["components"]:
             counts[c] = counts.get(c, 0) + 1
     return counts
+
+
+@router.get("/repos/{repo_id}/archmap")
+def repo_archmap(repo_id: str, p: Principal = Depends(current_principal)) -> dict:
+    repo = repos.get_repo(p, repo_id)
+    if repo["status"] != "ready":
+        raise HTTPException(status.HTTP_409_CONFLICT, "The architecture map is built when indexing finishes")
+    return archmap.respond("repo", repo_id, archmap.repo_map(repo))
+
+
+@router.post("/repos/{repo_id}/archmap/labels")
+def repo_archmap_labels(repo_id: str, p: Principal = Depends(current_principal)) -> dict:
+    """Ask Gemini to name the features and boxes (cached until the map's structure changes)."""
+    require(p, "ask")
+    repo = repos.get_repo(p, repo_id)
+    m = archmap.repo_map(repo)
+    if not archmap.cached_labels("repo", repo_id, m["fingerprint"]):
+        try:
+            archmap.make_labels("repo", repo_id, m, [repo["full_name"]])
+        except Exception as e:  # labels are optional: the map stays usable with code names
+            log.warning("archmap labels failed for %s: %s", repo["full_name"], e)
+            raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"Could not generate names with Gemini: {str(e)[:200]}")
+    return archmap.respond("repo", repo_id, m)
 
 
 @router.get("/repos/{repo_id}/graph")

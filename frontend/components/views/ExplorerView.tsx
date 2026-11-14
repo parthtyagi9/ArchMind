@@ -3,6 +3,7 @@ import { ChevronDown, ChevronRight, RefreshCw, X } from "lucide-react";
 import { useState } from "react";
 import { useApp } from "@/components/AppState";
 import { ArchGraph } from "@/components/views/ArchGraph";
+import { ArchMapView } from "@/components/views/ArchMapView";
 import { ComponentPanel } from "@/components/views/ComponentPanel";
 import { ManageGroupButton } from "@/components/ide/ManageGroupButton";
 import { Badge, Button, Empty, ErrorBanner, LoadingBlock, Skeleton } from "@/components/ui";
@@ -17,8 +18,12 @@ function Shell({ children }: { children: React.ReactNode }) {
 }
 
 export function ExplorerView() {
-  const { workspace } = useApp();
-  return workspace?.kind === "group" ? <GroupExplorer /> : <RepoExplorer />;
+  const { workspace, repo, group, groupMembers } = useApp();
+  if (workspace?.kind === "group") {
+    return group ? <ArchMapView source={{ kind: "group", group, members: groupMembers }} folders={<GroupExplorer />} /> : <GroupExplorer />;
+  }
+  if (workspace?.kind === "repo" && repo) return <ArchMapView source={{ kind: "repo", repo }} folders={<RepoExplorer />} />;
+  return <RepoExplorer />;
 }
 
 function GroupExplorer() {
@@ -55,7 +60,7 @@ function GroupExplorer() {
         </div>
         {stale.length > 0 && <StaleBanner repos={stale.map((r) => r.id)} onDone={graph.reload} />}
         {notReady.length > 0 && <div className="border-b border-line bg-info-soft px-4 py-1.5 text-[12px] text-info">{notReady.map((r) => `${r.full_name} (${r.status})`).join(", ")}: not on the map until indexing succeeds.</div>}
-        <div className="relative min-h-0 flex-1 bg-[radial-gradient(circle,#1b1f2d_1px,transparent_1px)] [background-size:24px_24px]">
+        <div className="relative min-h-0 flex-1 canvas-dots">
           <ArchGraph key={`${group.id}:${group.updated_at}:${g.repos.map((r) => r.id).join(",")}`} graph={g} grouped selected={activeNode} highlight={highlight} onSelect={setSelectedNode} />
         </div>
         <Unmatched g={g} />
@@ -171,7 +176,7 @@ function RepoExplorer() {
             </button>
           )}
         </div>
-        <div className="relative min-h-0 flex-1 bg-[radial-gradient(circle,#1b1f2d_1px,transparent_1px)] [background-size:24px_24px]">
+        <div className="relative min-h-0 flex-1 canvas-dots">
           <ArchGraph key={`${repo.id}:${repo.indexed_at}`} graph={g} selected={activeNode} highlight={highlight} onSelect={setSelectedNode} />
         </div>
       </div>

@@ -1,5 +1,5 @@
 "use client";
-import { FileCode, Files, Layers, Network, ShieldCheck, X } from "lucide-react";
+import { FileCode, Files, Layers, Network, PanelRightOpen, ShieldCheck, Sparkles, X } from "lucide-react";
 import { pageTitle, useApp, type SidebarPanel } from "@/components/AppState";
 import { ChatPanel } from "@/components/ide/ChatPanel";
 import { ManageGroupButton } from "@/components/ide/ManageGroupButton";
@@ -25,7 +25,7 @@ const ACTIVITY: { id: SidebarPanel; icon: typeof Files; label: string }[] = [
 ];
 
 export function Ide() {
-  const { workspace, repo, group, groupMembers, closeWorkspace, tabs, activeTabId, setActiveTabId, closeTab, sidebar, setSidebar, openArch, openPage, pendingCount, can } = useApp();
+  const { workspace, repo, group, groupMembers, closeWorkspace, tabs, activeTabId, setActiveTabId, closeTab, sidebar, setSidebar, sidebarOpen, setSidebarOpen, chatOpen, setChatOpen, openArch, openPage, pendingCount, can } = useApp();
   const active = tabs.find((t) => t.id === activeTabId) ?? null;
   const name = workspace?.kind === "local" ? workspace.name : workspace?.kind === "group" ? group?.name ?? "" : repo?.full_name ?? "";
   const chatKey = workspace?.kind === "repo" ? workspace.repoId : workspace?.kind === "group" ? `group:${workspace.groupId}` : `local:${name}`;
@@ -47,9 +47,15 @@ export function Ide() {
       <div className="flex min-h-0 flex-1">
         <nav aria-label="Activity bar" className="flex w-12 shrink-0 flex-col items-center gap-1 border-r border-line bg-panel/80 py-2">
           {ACTIVITY.map(({ id, icon: Icon, label }) => (
-            <button key={id} title={label} aria-label={label} aria-pressed={sidebar === id} onClick={() => { setSidebar(id); if (id === "arch" && indexed) openArch(); if (id === "gov" && sidebar !== "gov") openPage("governance"); }}
-              className={cn("relative grid h-10 w-10 place-items-center rounded-lg", sidebar === id ? "text-fg" : "text-muted hover:text-fg")}>
-              {sidebar === id && <span className="absolute left-[-6px] h-5 w-[2px] rounded bg-brand" />}
+            <button key={id} title={label} aria-label={label} aria-pressed={sidebarOpen && sidebar === id}
+              onClick={() => {
+                if (sidebarOpen && sidebar === id) { setSidebarOpen(false); return; }
+                setSidebar(id);
+                if (id === "arch" && indexed) openArch();
+                if (id === "gov" && sidebar !== "gov") openPage("governance");
+              }}
+              className={cn("relative grid h-10 w-10 place-items-center rounded-lg", sidebarOpen && sidebar === id ? "text-fg" : "text-muted hover:text-fg")}>
+              {sidebarOpen && sidebar === id && <span className="absolute left-[-6px] h-5 w-[2px] rounded bg-brand" />}
               <Icon className="h-5 w-5" />
               {id === "gov" && can("approve_memory") && pendingCount > 0 && <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-warn" />}
             </button>
@@ -57,13 +63,13 @@ export function Ide() {
           <div className="mt-auto"><UserMenu /></div>
         </nav>
 
-        <Sidebar />
+        {sidebarOpen && <Sidebar />}
 
         <div className="flex min-w-0 flex-1 flex-col">
           <div role="tablist" className="flex h-9 shrink-0 items-end overflow-x-auto border-b border-line bg-panel/60">
             {tabs.map((t) => (
               <div key={t.id} role="tab" aria-selected={t.id === activeTabId} tabIndex={0} onClick={() => setActiveTabId(t.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setActiveTabId(t.id); }}
-                className={cn("group flex h-full cursor-pointer items-center gap-2 border-r border-line px-3 text-xs", t.id === activeTabId ? "bg-bg text-fg shadow-[inset_0_2px_0_#4fb3ff]" : "text-muted hover:text-fg")}>
+                className={cn("group flex h-full cursor-pointer items-center gap-2 border-r border-line px-3 text-xs", t.id === activeTabId ? "bg-bg text-fg shadow-[inset_0_2px_0_var(--brand)]" : "text-muted hover:text-fg")}>
                 <TabIcon tab={t} /><span className="whitespace-nowrap">{tabTitle(t)}</span>
                 <button onClick={(e) => { e.stopPropagation(); closeTab(t.id); }} aria-label={`Close ${tabTitle(t)}`} className="rounded p-0.5 opacity-0 hover:bg-line/60 focus:opacity-100 group-hover:opacity-100"><X className="h-3 w-3" /></button>
               </div>
@@ -77,7 +83,16 @@ export function Ide() {
           </div>
         </div>
 
-        <aside aria-label="AI assistant" className="w-[400px] shrink-0 border-l border-line bg-panel/50"><ChatPanel key={chatKey} /></aside>
+        {/* the assistant stays mounted while collapsed, so a running answer and the thread survive */}
+        <aside aria-label="AI assistant" className={cn("w-[400px] shrink-0 border-l border-line bg-panel/50", !chatOpen && "hidden")}><ChatPanel key={chatKey} /></aside>
+        {!chatOpen && (
+          <button onClick={() => setChatOpen(true)} aria-label="Open AI assistant" title="Open the ArchMind assistant"
+            className="group flex w-10 shrink-0 flex-col items-center gap-3 border-l border-line bg-panel/60 pt-3 text-muted hover:bg-line/30 hover:text-fg">
+            <PanelRightOpen className="h-4 w-4" />
+            <Sparkles className="h-4 w-4 text-brand" />
+            <span className="text-[11px] font-medium tracking-wide [writing-mode:vertical-rl]">ArchMind</span>
+          </button>
+        )}
       </div>
 
       <StatusBar />

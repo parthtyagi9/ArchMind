@@ -1,11 +1,14 @@
 "use client";
 import { Compass, FolderOpen } from "lucide-react";
 import { GOV_NAV } from "@/components/views/GovernanceGuide";
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useApp, type SidebarPanel } from "@/components/AppState";
 import { FileTree } from "@/components/ide/FileTree";
 import { Badge, Skeleton, ErrorBanner, cn } from "@/components/ui";
 import { KIND_COLOR } from "@/components/views/ArchGraph";
+import { roleColor } from "@/components/views/ArchDiagram";
+import { useTheme } from "@/lib/theme";
+import { useArchMap, type ArchSource } from "@/lib/archData";
 import { readFolder } from "@/lib/localFiles";
 import { useGroupGraph } from "@/lib/groupData";
 import { useRepoGraph } from "@/lib/repoData";
@@ -73,8 +76,42 @@ function GovSide() {
 }
 
 function ArchSide() {
-  const { workspace } = useApp();
-  return workspace?.kind === "group" ? <GroupArchSide /> : <RepoArchSide />;
+  const { workspace, repo, group, groupMembers } = useApp();
+  const source = workspace?.kind === "group" && group ? { kind: "group" as const, group, members: groupMembers } : workspace?.kind === "repo" && repo ? { kind: "repo" as const, repo } : null;
+  if (!source) return <RepoArchSide />;
+  return <MapSide source={source} />;
+}
+
+function MapSide({ source }: { source: ArchSource }) {
+  const { openArch, archFeature, setArchFeature } = useApp();
+  const theme = useTheme();
+  const arch = useArchMap(source);
+  const [open, setOpen] = useState<string | null>(null);
+  if (source.kind === "repo" && source.repo.status !== "ready") return <p className="px-3 py-2 text-xs leading-relaxed text-muted">The map is built when indexing finishes.</p>;
+  if (arch.loading && !arch.data) return <div className="space-y-1.5 px-3 py-2">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-4" />)}</div>;
+  if (arch.error != null) return <div className="p-2"><ErrorBanner error={arch.error} onRetry={arch.reload} /></div>;
+  const m = arch.data;
+  if (!m) return null;
+  const byId = new Map(m.nodes.map((n) => [n.id, n]));
+  return (
+    <div className="px-2 py-1">
+      <button onClick={() => { setArchFeature(null); openArch(); }} className="mb-1 w-full rounded-md px-2 py-1 text-left text-[11px] text-brand hover:bg-line/40">Open architecture map</button>
+      {m.features.map((f) => (
+        <div key={f.id}>
+          <div className={cn("flex items-center rounded-md hover:bg-line/40", archFeature === f.id && "bg-brand-soft")}>
+            <button onClick={() => setOpen(open === f.id ? null : f.id)} aria-label="Expand" className="px-1 text-muted">{open === f.id ? "▾" : "▸"}</button>
+            <button onClick={() => { setArchFeature(f.id); openArch(); }} className="min-w-0 flex-1 truncate py-1.5 pr-2 text-left text-[12.5px] text-fg/90" title={f.description ?? undefined}>{f.name}</button>
+            <span className="pr-2 text-[10px] text-muted">{f.node_ids.length}</span>
+          </div>
+          {open === f.id && f.node_ids.map((id) => byId.get(id)).filter(Boolean).map((n) => (
+            <div key={n!.id} className="flex items-center gap-2 py-1 pl-7 pr-2 text-[11.5px] text-muted" title={n!.description ?? undefined}>
+              <span className="h-2 w-2 shrink-0 rounded-sm" style={{ background: roleColor(n!.role, theme) }} /><span className="truncate">{n!.label}</span>
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function GroupArchSide() {

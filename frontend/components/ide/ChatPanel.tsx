@@ -1,5 +1,5 @@
 "use client";
-import { Brain, Code2, Send, Sparkles, X } from "lucide-react";
+import { Brain, Code2, PanelRightClose, Send, Sparkles, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useApp } from "@/components/AppState";
 import { SubmitState, ThreadEntry, type ThreadItem } from "@/components/ide/ThreadEntry";
@@ -15,7 +15,7 @@ const nextKey = () => `q${Date.now()}_${++keySeq}`;
 const fromRun = (r: Run): ThreadItem => ({ key: r.id, question: r.question, selection: r.selection, runId: r.id, run: r, submitError: null });
 
 export function ChatPanel() {
-  const { workspace, repo, group, groupMembers, memoryOn, setMemoryOn, pendingSelection, setPendingSelection, askRequest, can, me, openPage } = useApp();
+  const { setChatOpen, workspace, repo, group, groupMembers, memoryOn, setMemoryOn, pendingSelection, setPendingSelection, askRequest, can, me, openPage } = useApp();
   const repoId = workspace?.kind === "repo" ? workspace.repoId : null;
   const groupId = workspace?.kind === "group" ? workspace.groupId : null;
   const isLocal = workspace?.kind === "local";
@@ -91,6 +91,8 @@ export function ChatPanel() {
           <Brain className={cn("h-3 w-3", memoryOn ? "text-ok" : "text-muted")} />
           <span className={memoryOn ? "text-ok" : "text-muted"}>Governed memory {memoryOn ? "on" : "off"}</span>
         </button>
+        <button onClick={() => setChatOpen(false)} aria-label="Collapse assistant" title="Collapse the assistant panel"
+          className="rounded-md p-1 text-muted hover:bg-line/50 hover:text-fg"><PanelRightClose className="h-4 w-4" /></button>
       </div>
       <div className={cn("border-b border-line px-3 py-1.5 text-[12px] leading-snug", memoryOn ? "text-muted" : "bg-warn-soft/40 text-warn")}>
         {memoryOn

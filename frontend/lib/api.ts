@@ -1,6 +1,6 @@
 // Small typed fetch client for the ArchMind API. All paths are relative to /api (proxied to FastAPI).
 import type {
-  AuditEvent, Compare, ComponentDetail, Graph, GithubRepos, Group, GroupGraph, Integrations, AtlassianInfo, Invite, Me, Memory,
+  ArchMap, AuditEvent, Compare, ComponentDetail, Graph, GithubRepos, Group, GroupGraph, Integrations, AtlassianInfo, Invite, Me, Memory,
   OrgMember, Repo, RepoFile, Run, SearchResponse, Selection, SourceRef, TreeFile, Role, MemoryType, Scope,
 } from "@/lib/types";
 
@@ -150,6 +150,10 @@ export const api = {
   tree: (id: string) => get<{ files: TreeFile[] }>(`/repos/${enc(id)}/tree`),
   file: (id: string, path: string) => get<RepoFile>(`/repos/${enc(id)}/file`, { path }),
   graph: (id: string) => get<Graph>(`/repos/${enc(id)}/graph`),
+  archmap: (id: string) => get<ArchMap>(`/repos/${enc(id)}/archmap`),
+  archmapLabels: (id: string) => post<ArchMap>(`/repos/${enc(id)}/archmap/labels`),
+  groupArchmap: (id: string) => get<ArchMap>(`/groups/${enc(id)}/archmap`),
+  groupArchmapLabels: (id: string) => post<ArchMap>(`/groups/${enc(id)}/archmap/labels`),
   component: (id: string, nodeId: string) => get<ComponentDetail>(`/repos/${enc(id)}/components/${enc(nodeId)}`),
 
   // repo groups

@@ -226,6 +226,55 @@ export interface ComponentDetail {
   memories: Memory[];
 }
 
+// ---------- architecture map (class-level, from code analysis; names optionally from Gemini)
+export type ArchRole =
+  | "actor" | "router" | "page" | "component" | "client" | "endpoint" | "job" | "service" | "mapper" | "repository" | "entity" | "external" | "database";
+export interface ArchNode {
+  id: string;
+  name: string;
+  label: string;
+  role: ArchRole;
+  tier: "frontend" | "backend" | "external" | "actor";
+  feature: string;
+  file: string | null;
+  line: number | null;
+  lang?: string;
+  kind?: string;
+  component?: string;
+  tags: string[];
+  description: string | null;
+  routes?: string[];
+  ui_route?: string | null;
+  schedule?: string | null;
+  store?: string | null;
+  repo_id?: string;
+  repo_name?: string;
+}
+export interface ArchEdge {
+  id: string;
+  from: string;
+  to: string;
+  kind: "uses" | "http" | "routes" | "stores" | "data" | "external" | "actor";
+  label: string;
+  methods: string[];
+  endpoints: string[];
+  tags: string[];
+  evidence?: EdgeEvidence[];
+  cross_repo?: boolean;
+}
+export interface ArchFeature { id: string; name: string; tier: "frontend" | "backend" | "external"; description: string | null; node_ids: string[]; repo_name?: string }
+export interface ArchMap {
+  nodes: ArchNode[];
+  edges: ArchEdge[];
+  features: ArchFeature[];
+  hidden: Record<string, number>;
+  unmatched_calls: ApiCall[];
+  fingerprint: string;
+  labels: { model: string | null; summary: string | null } | null;
+  labels_status: "ready" | "missing" | "unavailable";
+  repos?: { id: string; full_name: string; status: string }[];
+}
+
 export interface Group {
   id: string;
   name: string;
