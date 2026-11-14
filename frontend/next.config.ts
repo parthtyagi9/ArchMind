@@ -1,8 +1,9 @@
 import type { NextConfig } from "next";
 
-// BACKEND_URL may be a full URL, or a bare host:port from Render's private network (archmind-api:10000).
+// BACKEND_URL may be a full URL, a private-network host:port (archmind-api:10000 -> http), or a bare public
+// hostname as Render injects it (archmind-api.onrender.com -> https).
 const RAW_BACKEND = process.env.BACKEND_URL ?? "http://127.0.0.1:8000";
-const BACKEND = RAW_BACKEND.includes("://") ? RAW_BACKEND : `http://${RAW_BACKEND}`;
+const BACKEND = RAW_BACKEND.includes("://") ? RAW_BACKEND : /:\d+$/.test(RAW_BACKEND) ? `http://${RAW_BACKEND}` : `https://${RAW_BACKEND}`;
 
 const nextConfig: NextConfig = {
   turbopack: {

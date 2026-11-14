@@ -1,14 +1,15 @@
 # Render Blueprint: the FastAPI backend and the Next.js frontend.
-# The browser only talks to the frontend; it proxies /api to the backend over Render's private network,
-# so the httpOnly session cookie stays same-origin.
+# The browser only talks to the frontend; it proxies /api to the backend (public https URL: free services cannot
+# receive private-network traffic), so the httpOnly session cookie stays same-origin.
 services:
   - type: web
     name: archmind-api
     runtime: python
     rootDir: backend
     region: oregon
-    # Always on: indexing, agent runs and map builds run in background threads (a sleeping instance kills them).
-    plan: starter
+    # Free plan: sleeps after 15 min idle, and a sleeping instance kills in-flight indexing / agent runs
+    # (they are marked interrupted on the next start). Switch to "starter" for an always-on backend.
+    plan: free
     # Exactly one instance and one worker: background work is in-process and startup marks unfinished work as interrupted.
     numInstances: 1
     buildCommand: pip install --upgrade uv && uv sync --frozen --no-dev
@@ -42,7 +43,7 @@ services:
     runtime: node
     rootDir: frontend
     region: oregon
-    plan: starter
+    plan: free
     buildCommand: npm ci && npm run build
     startCommand: npm run start -- --port $PORT
     healthCheckPath: /
@@ -53,4 +54,4 @@ services:
         fromService:
           type: web
           name: archmind-api
-          property: hostport
+          property: host
