@@ -1,5 +1,5 @@
 "use client";
-import { Brain, Code2, Link2, PanelRightClose, Send, Sparkles, X } from "lucide-react";
+import { Brain, Code2, Link2, MessageSquarePlus, PanelRightClose, Send, Sparkles, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useApp } from "@/components/AppState";
 import { SubmitState, ThreadEntry, type ThreadItem } from "@/components/ide/ThreadEntry";
@@ -36,18 +36,39 @@ export function ChatPanel() {
     return () => window.removeEventListener("focus", refresh);
   }, [refreshIntegrations]);
 
+  // "New chat" hides earlier runs from this thread (they stay in the Agent Run Inspector and the audit log).
+  // The start time is remembered per workspace in this browser, so a fresh chat survives reloads.
+  const chatKey = `archmind.chatSince.${groupId ?? repoId ?? "none"}`;
+  const [chatSince, setChatSince] = useState<string | null>(null);
+  useEffect(() => {
+    let since: string | null = null;
+    try { since = window.localStorage.getItem(chatKey); } catch { /* storage unavailable: start from full history */ }
+    setChatSince(since);
+    setItems([]);
+  }, [chatKey]);
+  const newChat = () => {
+    const now = new Date().toISOString();
+    try { window.localStorage.setItem(chatKey, now); } catch { /* storage unavailable: clears for this session only */ }
+    setChatSince(now);
+    setItems([]);
+    setText("");
+    setPendingSelection(null);
+  };
+
   // Prior runs for this repository (or group), so the thread persists across reloads.
   const history = useAsync(() => api.runs(groupId ? { group_id: groupId, limit: 30 } : { repo_id: repoId ?? undefined, limit: 30 }), [repoId, groupId], repoId !== null || groupId !== null);
   useEffect(() => {
     const runs = history.data;
     if (!runs) return;
+    const after = chatSince ? Date.parse(chatSince) : 0;
     setItems((cur) => {
       const have = new Set(cur.map((i) => i.runId));
       // in a group, show the selection with its repository prefix, the way it appears in the explorer
       const shown = runs.map((r) => (r.group_id && r.selection && r.repo_name ? { ...r, selection: { ...r.selection, path: groupPath(r.repo_name, r.selection.path) } } : r));
-      return [...shown.slice().reverse().filter((r) => !have.has(r.id)).map(fromRun), ...cur];
+      const keep = cur.filter((i) => !i.run || Date.parse(i.run.created_at) > after);
+      return [...shown.slice().reverse().filter((r) => !have.has(r.id) && Date.parse(r.created_at) > after).map(fromRun), ...keep];
     });
-  }, [history.data]);
+  }, [history.data, chatSince]);
 
   useEffect(() => { bottom.current?.scrollIntoView({ behavior: "smooth", block: "end" }); }, [items.length, history.data]);
 
@@ -96,6 +117,10 @@ export function ChatPanel() {
       <div className="flex items-center gap-2 border-b border-line px-3 py-2">
         <Sparkles className="h-4 w-4 text-brand" />
         <span className="text-xs font-semibold">ArchMind</span>
+        <button onClick={newChat} disabled={items.length === 0} title="Start a new chat. Earlier answers stay in the Agent Run Inspector."
+          className="ml-2 flex items-center gap-1 rounded-md border border-line px-2 py-1 text-[12px] text-muted hover:bg-line/50 hover:text-fg disabled:opacity-40 disabled:hover:bg-transparent">
+          <MessageSquarePlus className="h-3 w-3" />New chat
+        </button>
         <button onClick={() => setMemoryOn(!memoryOn)} aria-pressed={memoryOn} className="ml-auto flex items-center gap-1.5 rounded-md border border-line px-2 py-1 text-[12px]"
           title="When off, runs are made without any organizational memory (memory_enabled: false)">
           <Brain className={cn("h-3 w-3", memoryOn ? "text-ok" : "text-muted")} />
