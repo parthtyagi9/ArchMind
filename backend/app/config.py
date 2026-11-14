@@ -19,10 +19,10 @@ class Settings(BaseSettings):
     embedding_dimensions: int = 1024
     # Agent planner: "gemini" or "rules" (offline deterministic planner; labeled in the UI)
     llm_provider: str = "gemini"
-    llm_model: str = "gemini-3.5-flash"
+    llm_model: str = "gemini-3.5-flash-lite"
     llm_temperature: float = 0.0
     # Tried in order when the primary model is overloaded (503), rate-limited (429) or unknown (404).
-    llm_fallback_models: str = "gemini-3.8-flash,gemini-3.5-flash-lite,gemini-3.6-flash"
+    llm_fallback_models: str = "gemini-3.5-flash,gemini-3.8-flash,gemini-3.6-flash"
     llm_timeout_ms: int = 30000
 
     # "atlas" uses $vectorSearch. "local" is an exact cosine scan used ONLY by unit tests
