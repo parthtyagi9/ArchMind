@@ -44,7 +44,7 @@ export function SubmitState({ item, onRetry }: { item: ThreadItem; onRetry: () =
 }
 
 export function ThreadEntry({ item }: { item: ThreadItem & { runId: string } }) {
-  const { openPage, setHighlight, repo, can } = useApp();
+  const { openPage, setHighlight, repo, group, can } = useApp();
   const poll = usePolling<Run>({
     id: item.runId, initial: item.run, fetch: () => api.run(item.runId),
     keepGoing: (r) => r.status === "running", intervalMs: 600,
@@ -99,7 +99,7 @@ export function ThreadEntry({ item }: { item: ThreadItem & { runId: string } }) 
             <AnswerCard
               answer={run.answer} runId={run.id} memoryEnabled={run.memory_enabled}
               memoriesUsed={run.memory.retrieved.filter((r) => r.used).length}
-              canShowGraph={!!run.repo_id && repo?.id === run.repo_id}
+              canShowGraph={run.group_id ? group?.id === run.group_id : !!run.repo_id && repo?.id === run.repo_id}
               onEvidence={(ref) => setFocus((f) => ({ ref, nonce: (f?.nonce ?? 0) + 1 }))}
               footer={
                 <>

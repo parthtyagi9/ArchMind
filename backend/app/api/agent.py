@@ -16,12 +16,14 @@ class SelectionIn(BaseModel):
     start_line: int
     end_line: int
     text: str
+    repo_id: str | None = None  # in a group workspace: which member repository the selection is from
 
 
 class RunIn(BaseModel):
     kind: str = "why"
     question: str = ""
     repo_id: str | None = None
+    group_id: str | None = None
     selection: SelectionIn | None = None
     memory_enabled: bool = True
 
@@ -29,6 +31,7 @@ class RunIn(BaseModel):
 class CompareIn(BaseModel):
     question: str = ""
     repo_id: str | None = None
+    group_id: str | None = None
     selection: SelectionIn | None = None
 
 
@@ -41,7 +44,7 @@ def _visible(p: Principal) -> dict:
 
 @router.post("/runs")
 def create_run(body: RunIn, p: Principal = Depends(current_principal)) -> dict:
-    run_id = pipeline.start_run(p, kind=body.kind, question=body.question, repo_id=body.repo_id,
+    run_id = pipeline.start_run(p, kind=body.kind, question=body.question, repo_id=body.repo_id, group_id=body.group_id,
                                 selection=body.selection.model_dump() if body.selection else None, memory_enabled=body.memory_enabled)
     return {"run_id": run_id}
 
@@ -55,9 +58,11 @@ def get_run(run_id: str, p: Principal = Depends(current_principal)) -> dict:
 
 
 @router.get("/runs")
-def list_runs(repo_id: str | None = None, limit: int = 30, p: Principal = Depends(current_principal)) -> list[dict]:
+def list_runs(repo_id: str | None = None, group_id: str | None = None, limit: int = 30, p: Principal = Depends(current_principal)) -> list[dict]:
     q = _visible(p)
-    if repo_id:
+    if group_id:
+        q["group_id"] = group_id
+    elif repo_id:
         q["repo_id"] = repo_id
     return [pipeline.run_api(d) for d in get_db().agent_runs.find(q).sort("created_at", -1).limit(max(1, min(limit, 100)))]
 
@@ -70,7 +75,7 @@ def propose_memory(run_id: str, p: Principal = Depends(current_principal)) -> di
 @router.post("/compare")
 def create_compare(body: CompareIn, p: Principal = Depends(current_principal)) -> dict:
     require(p, "ask")
-    cid = pipeline.start_compare(p, question=body.question, repo_id=body.repo_id, selection=body.selection.model_dump() if body.selection else None)
+    cid = pipeline.start_compare(p, question=body.question, repo_id=body.repo_id, group_id=body.group_id, selection=body.selection.model_dump() if body.selection else None)
     return {"compare_id": cid}
 
 

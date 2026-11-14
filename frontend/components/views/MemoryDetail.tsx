@@ -63,6 +63,7 @@ function Body({ m, onChanged, onPurged }: { m: Memory; onChanged: () => void; on
           <Meta k="Expires" v={m.expires_at ? fmtDate(m.expires_at) : "never"} />
           <Meta k="Retrieved by agents" v={`${m.retrieval_count} time${m.retrieval_count === 1 ? "" : "s"}`} />
           <Meta k="Updated" v={fmtDate(m.updated_at)} />
+          {m.group_id && <Meta k="Repo group" v={m.group_name ?? m.group_id} />}
           {m.repo_id && <Meta k="Repository" v={m.repo_name ?? repos.find((r) => r.id === m.repo_id)?.full_name ?? m.repo_id} />}
         </dl>
 

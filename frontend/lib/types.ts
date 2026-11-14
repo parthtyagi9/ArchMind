@@ -44,7 +44,7 @@ export type MemoryType =
   | "workaround"
   | "agent_experience";
 export type MemoryStatus = "pending" | "active" | "superseded" | "invalidated" | "rejected" | "purged" | "expired";
-export type Scope = "org" | "repo" | "team";
+export type Scope = "org" | "repo" | "team" | "group";
 export type Authority = "agent_observed" | "human" | "verified";
 
 export interface Memory {
@@ -59,6 +59,8 @@ export interface Memory {
   team: string | null;
   repo_id: string | null;
   repo_name: string | null;
+  group_id: string | null;
+  group_name: string | null;
   authority: Authority;
   components: string[];
   source_refs: SourceRef[];
@@ -89,7 +91,8 @@ export interface AgentStatus {
   finished_at: string | null;
 }
 
-export interface Selection { path: string; start_line: number; end_line: number; text: string }
+/** In a group workspace `path` is "<owner>/<repo>/<file path>" in the UI; the API receives the file path plus `repo_id`. */
+export interface Selection { path: string; start_line: number; end_line: number; text: string; repo_id?: string | null }
 
 export type Verdict = "proceed" | "proceed_with_constraints" | "needs_architecture_review" | "insufficient_evidence";
 
@@ -115,6 +118,8 @@ export interface Run {
   selection: Selection | null;
   repo_id: string | null;
   repo_name: string | null;
+  group_id: string | null;
+  group_name: string | null;
   memory_enabled: boolean;
   user: { id: string; name: string };
   created_at: string;
@@ -166,19 +171,70 @@ export interface GraphNode {
   languages: string[];
   files: string[];
   memory_count: number;
+  // group maps only
+  component_id?: string;
+  repo_id?: string;
+  repo_name?: string;
 }
-export interface GraphEdge { from: string; to: string; weight: number; kind: "imports" }
+export type EdgeKind = "imports" | "calls_api" | "depends_on_package";
+export interface Endpoint { method: string; path: string }
+export interface EdgeEvidence {
+  call_file?: string; call_line?: number; call?: string; call_repo?: string;
+  route_file?: string; route_line?: number; route?: string; route_repo?: string; score?: number;
+  import_file?: string; import_repo?: string; package?: string; manifest_file?: string; manifest_repo?: string;
+}
+export interface GraphEdge {
+  from: string;
+  to: string;
+  weight: number;
+  kind: EdgeKind;
+  cross_repo?: boolean;
+  endpoints?: Endpoint[];
+  packages?: string[];
+  confidence?: number;
+  evidence?: EdgeEvidence[];
+}
 export interface Graph { nodes: GraphNode[]; edges: GraphEdge[] }
-export interface ComponentLink { id: string; label: string; weight: number }
+export interface ApiRoute { method: string; path: string; raw: string; file: string; line: number; framework?: string }
+export interface ApiCall { method: string; path: string; raw: string; host: string | null; file: string; line: number; repo_name?: string }
+export interface GroupGraph extends Graph {
+  group: { id: string; name: string };
+  repos: { id: string; full_name: string; branch: string; status: Repo["status"]; file_count: number; interfaces_indexed: boolean; routes: number; calls: number }[];
+  unmatched_calls: ApiCall[];
+  stats: { routes: number; calls: number; cross_repo_edges: number };
+}
+export interface ComponentLink {
+  id: string;
+  label: string;
+  weight: number;
+  kind?: EdgeKind;
+  repo_name?: string | null;
+  cross_repo?: boolean;
+  endpoints?: Endpoint[];
+  packages?: string[];
+  evidence?: EdgeEvidence[];
+}
 export interface ComponentDetail {
   node: GraphNode;
   depends_on: ComponentLink[];
   used_by: ComponentLink[];
+  serves?: ApiRoute[];
+  calls?: ApiCall[];
   recent_commits: Finding[];
   memories: Memory[];
 }
 
-export interface TreeFile { path: string; size: number; language: string }
+export interface Group {
+  id: string;
+  name: string;
+  description: string;
+  repo_ids: string[];
+  repos: Repo[];
+  created_at: string;
+  updated_at: string | null;
+}
+
+export interface TreeFile { path: string; size: number; language: string; repo_id?: string; repo_name?: string }
 export interface RepoFile { path: string; content: string; language: string; size: number; sha: string }
 
 export interface OrgMember { user_id: string; name: string; email: string; role: Role; team: string | null }
@@ -222,4 +278,5 @@ export type Tab =
 
 export type Workspace =
   | { kind: "repo"; repoId: string }
+  | { kind: "group"; groupId: string }
   | { kind: "local"; name: string; files: Record<string, string> };

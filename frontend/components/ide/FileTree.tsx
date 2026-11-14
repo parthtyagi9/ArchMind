@@ -3,8 +3,10 @@ import { ChevronDown, ChevronRight, FileCode, FileText, Folder, Search } from "l
 import { useMemo, useState } from "react";
 import { useApp } from "@/components/AppState";
 import { ErrorBanner, InfoBanner, Skeleton, cn, inputCls } from "@/components/ui";
+import { ManageGroupButton } from "@/components/ide/ManageGroupButton";
+import { groupPath, useGroupTree } from "@/lib/groupData";
 import { useRepoTree } from "@/lib/repoData";
-import type { Repo } from "@/lib/types";
+import type { Group, Repo } from "@/lib/types";
 
 interface TreeNode { name: string; path: string; children?: TreeNode[] }
 
@@ -99,10 +101,28 @@ function RepoTree({ repo }: { repo: Repo }) {
   return <TreeBody paths={paths} />;
 }
 
+function GroupTree({ group, members }: { group: Group; members: Repo[] }) {
+  const tree = useGroupTree(group, members);
+  const paths = useMemo(() => tree.data?.files.map((f) => groupPath(f.repo_name ?? "", f.path)) ?? [], [tree.data]);
+  const indexing = members.filter((r) => r.status === "indexing");
+  return (
+    <>
+      {indexing.length > 0 && <p className="px-3 pb-1 text-[11px] text-info">{indexing.map((r) => r.full_name).join(", ")} still indexing; its files appear when it finishes.</p>}
+      {tree.loading && !tree.data ? <div className="space-y-1.5 px-3 py-2">{[0, 1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-4" />)}</div>
+        : tree.error != null ? <div className="p-2"><ErrorBanner error={tree.error} onRetry={tree.reload} /></div>
+        : members.length === 0 ? <div className="space-y-2 px-3 py-2 text-xs text-muted"><p>This group has no repositories yet.</p><ManageGroupButton className="-ml-2" /></div>
+        : paths.length === 0 ? <p className="px-3 py-2 text-xs text-muted">No indexed files yet.</p>
+        : <TreeBody paths={paths} />}
+      {members.length > 0 && <div className="border-t border-line/60 px-1 py-1"><ManageGroupButton /></div>}
+    </>
+  );
+}
+
 export function FileTree() {
-  const { workspace, repo } = useApp();
+  const { workspace, repo, group, groupMembers } = useApp();
   const localPaths = useMemo(() => (workspace?.kind === "local" ? Object.keys(workspace.files) : []), [workspace]);
   if (workspace?.kind === "local") return <TreeBody paths={localPaths} />;
+  if (workspace?.kind === "group") return group ? <GroupTree group={group} members={groupMembers} /> : <p className="px-3 py-2 text-xs text-muted">Group not found.</p>;
   if (!repo) return <p className="px-3 py-2 text-xs text-muted">Repository not found.</p>;
   return <RepoTree repo={repo} />;
 }

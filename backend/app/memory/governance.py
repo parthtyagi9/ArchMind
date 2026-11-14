@@ -20,11 +20,21 @@ from app import audit
 from app.db import get_db, new_id, utcnow
 from app.deps import Principal, require
 from app.memory import repository as repo
+from app.memory.context import NONE, MemoryContext
+
+
+def _group_args(p: Principal, scope: str, group_id: str | None) -> tuple[str | None, str | None]:
+    if scope != "group":
+        return None, None
+    g = get_db().repo_groups.find_one({"_id": group_id, "org_id": p.org_id}) if group_id else None
+    if not g:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "A group-scoped memory needs one of this organization's repo groups")
+    return g["_id"], g["name"]
 
 
 def _scope_args(p: Principal, scope: str, team: str | None, repo_id: str | None) -> tuple[str | None, str | None, str | None]:
     if scope not in repo.SCOPES:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "scope must be org, repo or team")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "scope must be org, repo, team or group")
     team = (team or "").strip() or None
     repo_name = None
     if scope == "team":
@@ -40,19 +50,21 @@ def _scope_args(p: Principal, scope: str, team: str | None, repo_id: str | None)
 
 def propose(p: Principal, *, title: str, content: str, memory_type: str, scope: str, team: str | None = None, repo_id: str | None = None,
             components: list[str] | None = None, source_refs: list[dict] | None = None, expires_in_days: int | None = None,
-            authority: str = "human", force_pending: bool = False) -> dict:
+            authority: str = "human", force_pending: bool = False, group_id: str | None = None) -> dict:
     require(p, "propose_memory")
     if not title.strip() or not content.strip():
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Title and content are required")
     if memory_type not in repo.TYPES:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"memory_type must be one of {', '.join(repo.TYPES)}")
     team, repo_id, repo_name = _scope_args(p, scope, team, repo_id)
+    group_id, group_name = _group_args(p, scope, group_id)
     direct = p.can("approve_memory") and not force_pending  # agent proposals always wait for a human decision
     try:
         doc = repo.create_version(
             tenant_id=p.org_id, title=title, content=content, memory_type=memory_type, scope=scope, team=team, repo_id=repo_id, repo_name=repo_name,
             components=components or [], source_refs=_clean_refs(source_refs), authority=authority, status=repo.ACTIVE if direct else repo.PENDING,
-            created_by=p.actor, approved_by=p.actor if direct else None, expires_at=repo.expiry_from_days(expires_in_days))
+            created_by=p.actor, approved_by=p.actor if direct else None, expires_at=repo.expiry_from_days(expires_in_days),
+            group_id=group_id, group_name=group_name)
     except DuplicateKeyError:
         raise HTTPException(status.HTTP_409_CONFLICT, "Memory already exists")
     audit.record("memory.created", p, memory_id=doc["memory_id"], details={"status": doc["status"], "scope": scope, "type": memory_type,
@@ -171,22 +183,22 @@ def purge(p: Principal, memory_id: str, reason: str = "") -> dict:
 
 
 # ------------------------------------------------------------------ reads
-def list_memories(p: Principal, *, status_filter: str | None = None, q: str | None = None, repo_id: str | None = None) -> list[dict]:
+def list_memories(p: Principal, *, status_filter: str | None = None, q: str | None = None, ctx: MemoryContext = NONE) -> list[dict]:
     seen: dict[str, dict] = {}
     for d in get_db().memories.find(repo.visible_filter(p), {"embedding": 0}).sort("version", 1):
         cur = seen.get(d["memory_id"])
         if cur is None or d["status"] == repo.ACTIVE or (cur["status"] != repo.ACTIVE and d["version"] > cur["version"]):
             seen[d["memory_id"]] = d
     docs = [d for d in seen.values() if d["status"] != repo.PURGED or status_filter == "purged"]
-    if repo_id:
-        docs = [d for d in docs if d["scope"] != "repo" or d.get("repo_id") == repo_id]
+    if ctx.scoped:
+        docs = [d for d in docs if (d["scope"] != "repo" or d.get("repo_id") in ctx.repo_ids) and (d["scope"] != "group" or d.get("group_id") == ctx.group_id)]
     if status_filter:
         docs = [d for d in docs if repo.effective_status(d) == status_filter]
     if q:
         ql = q.lower()
         docs = [d for d in docs if ql in (d.get("title", "") + " " + d.get("content", "")).lower()]
     docs.sort(key=lambda d: d["updated_at"], reverse=True)
-    return [repo.to_api(d, p, repo_id=repo_id) for d in docs]
+    return [repo.to_api(d, p, ctx=ctx) for d in docs]
 
 
 def detail(p: Principal, memory_id: str) -> dict:

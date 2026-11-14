@@ -152,7 +152,7 @@ def index_repo(repo_id: str, token: str | None) -> None:
                 _progress(repo_id, i, total)
         graph = code.build_graph(files)
         db.repo_graphs.replace_one({"_id": repo_id}, {"_id": repo_id, "org_id": repo["org_id"], "nodes": graph["nodes"],
-                                                      "edges": graph["edges"], "built_at": utcnow()}, upsert=True)
+                                                      "edges": graph["edges"], "interfaces": graph["interfaces"], "built_at": utcnow()}, upsert=True)
         db.repos.update_one({"_id": repo_id}, {"$set": {"status": "ready", "file_count": total, "indexed_at": utcnow(), "error": None}})
         audit.record("repo.indexed", None, tenant_id=repo["org_id"], details={"repo": repo["full_name"], "files": total,
                                                                                "components": len(graph["nodes"])})
@@ -170,6 +170,7 @@ def delete_repo(p: Principal, repo_id: str) -> None:
     db.source_documents.delete_many({"repo_id": repo_id})
     db.repo_graphs.delete_one({"_id": repo_id})
     db.repos.delete_one({"_id": repo_id})
+    db.repo_groups.update_many({"org_id": p.org_id, "repo_ids": repo_id}, {"$pull": {"repo_ids": repo_id}, "$set": {"updated_at": utcnow()}})
     audit.record("repo.removed", p, details={"repo": repo["full_name"]})
 
 
@@ -189,3 +190,12 @@ def file_doc(repo_id: str, path: str) -> dict:
 def graph(repo_id: str) -> dict:
     g = get_db().repo_graphs.find_one({"_id": repo_id})
     return {"nodes": g["nodes"], "edges": g["edges"]} if g else {"nodes": [], "edges": []}
+
+
+EMPTY_INTERFACES = {"routes": [], "calls": [], "provides": [], "requires": []}
+
+
+def interfaces_of(repo_id: str) -> dict:
+    """Routes/calls/packages found at index time. Repos indexed before this existed have none until they are reindexed."""
+    g = get_db().repo_graphs.find_one({"_id": repo_id}, {"interfaces": 1})
+    return (g or {}).get("interfaces") or EMPTY_INTERFACES

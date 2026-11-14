@@ -7,6 +7,8 @@ import posixpath
 import re
 from collections import Counter, defaultdict
 
+from app import interfaces
+
 LANG_BY_EXT = {
     "ts": "typescript", "tsx": "typescript", "js": "javascript", "jsx": "javascript", "mjs": "javascript", "cjs": "javascript",
     "py": "python", "go": "go", "java": "java", "kt": "kotlin", "rs": "rust", "rb": "ruby", "php": "php", "cs": "csharp",
@@ -234,12 +236,16 @@ def build_graph(files: dict[str, str]) -> dict:
     comp_of = assign_components(paths)
     resolver = Resolver(files)
     edge_w: Counter = Counter()
+    unresolved: dict[str, list[tuple[str, str]]] = defaultdict(list)
     for p in paths:
         lang = language_of(p)
         for cands in extract_imports(files[p], lang):
             target = resolver.resolve(p, lang, cands)
             if target and comp_of.get(target) and comp_of[target] != comp_of[p]:
                 edge_w[(comp_of[p], comp_of[target])] += 1
+            elif not target and cands:
+                unresolved[p].append((cands[-1], lang))
+    ifaces = interfaces.analyze(files, language_of, comp_of, unresolved)
 
     by_comp: dict[str, list[str]] = defaultdict(list)
     for p in paths:
@@ -254,4 +260,25 @@ def build_graph(files: dict[str, str]) -> dict:
             "languages": [k for k, _ in langs.most_common(3)], "files": fs[:500],
         })
     edges = [{"from": slug(a), "to": slug(b), "weight": w, "kind": "imports"} for (a, b), w in sorted(edge_w.items())]
-    return {"nodes": nodes, "edges": edges}
+    # HTTP calls between components of the same repository (e.g. a monorepo's web app calling its own API)
+    links, _ = interfaces.link_calls(ifaces["calls"], ifaces["routes"])
+    edges += api_edges([(c, r, s) for c, r, s in links if c["component"] != r["component"]], lambda c: slug(c["component"]), lambda r: slug(r["component"]))
+    return {"nodes": nodes, "edges": edges, "interfaces": ifaces}
+
+
+def api_edges(links: list[tuple[dict, dict, float]], src_id, dst_id, max_evidence: int = 20) -> list[dict]:
+    """Group call->route links into one `calls_api` edge per (caller component, serving component), keeping the evidence."""
+    grouped: dict[tuple[str, str], list[tuple[dict, dict, float]]] = defaultdict(list)
+    for c, r, s in links:
+        grouped[(src_id(c), dst_id(r))].append((c, r, s))
+    out = []
+    for (a, b), items in sorted(grouped.items()):
+        endpoints = sorted({(r["method"], r["path"]) for _, r, _ in items})
+        out.append({"from": a, "to": b, "weight": len(items), "kind": "calls_api",
+                    "endpoints": [{"method": m, "path": p} for m, p in endpoints][:50],
+                    "confidence": round(max(s for *_, s in items), 2),
+                    "evidence": [{"call_file": c["file"], "call_line": c["line"], "call": f"{c['method']} {c['raw']}",
+                                  "route_file": r["file"], "route_line": r["line"], "route": f"{r['method']} {r['path']}", "score": s,
+                                  **({"call_repo": c["repo_name"], "route_repo": r["repo_name"]} if "repo_name" in c else {})}
+                                 for c, r, s in items[:max_evidence]]})
+    return out

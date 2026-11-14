@@ -10,10 +10,11 @@ import { useAsync, usePolling } from "@/lib/hooks";
 import type { Answer, Compare, Selection } from "@/lib/types";
 
 export function CompareView() {
-  const { comparePrefill, repo, repos, can } = useApp();
+  const { comparePrefill, repo, group, repos, groups, can } = useApp();
   const [question, setQuestion] = useState("");
   const [selection, setSelection] = useState<Selection | null>(null);
-  const [repoId, setRepoId] = useState<string>(repo?.id ?? "");
+  // "group:<id>" or "repo:<id>" or "" for no workspace
+  const [target, setTarget] = useState<string>(group ? `group:${group.id}` : repo ? `repo:${repo.id}` : "");
   const [compareId, setCompareId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -24,14 +25,14 @@ export function CompareView() {
     if (!comparePrefill) return;
     setQuestion(comparePrefill.question);
     setSelection(comparePrefill.selection);
-    setRepoId(comparePrefill.repoId ?? "");
+    setTarget(comparePrefill.groupId ? `group:${comparePrefill.groupId}` : comparePrefill.repoId ? `repo:${comparePrefill.repoId}` : "");
     setCompareId(null);
   }, [comparePrefill]);
 
   const pickRun = (id: string) => {
     const r = runs.data?.find((x) => x.id === id);
     if (!r) return;
-    setQuestion(r.question); setSelection(r.selection); setRepoId(r.repo_id ?? ""); setCompareId(null);
+    setQuestion(r.question); setSelection(r.selection); setTarget(r.group_id ? `group:${r.group_id}` : r.repo_id ? `repo:${r.repo_id}` : ""); setCompareId(null);
   };
 
   const start = async (e: React.FormEvent) => {
@@ -39,7 +40,10 @@ export function CompareView() {
     if (!question.trim() || !canAsk) return;
     setBusy(true); setError(null); setCompareId(null);
     try {
-      const { compare_id } = await api.startCompare({ question: question.trim(), ...(repoId ? { repo_id: repoId } : {}), ...(selection ? { selection } : {}) });
+      const where = target.startsWith("group:") ? { group_id: target.slice(6) } : target.startsWith("repo:") ? { repo_id: target.slice(5) } : {};
+      // a selection made in a group keeps the repository it came from
+      const sel = selection && target.startsWith("group:") ? selection : selection ? { ...selection, repo_id: undefined } : null;
+      const { compare_id } = await api.startCompare({ question: question.trim(), ...where, ...(sel ? { selection: sel } : {}) });
       setCompareId(compare_id);
     } catch (err) { setError(errorMessage(err)); }
     finally { setBusy(false); }
@@ -59,10 +63,11 @@ export function CompareView() {
                 {runs.data?.map((r) => <option key={r.id} value={r.id}>{timeAgo(r.created_at)} · {r.question.slice(0, 60)}</option>)}
               </select>
             </Field>
-            <Field label="Repository">
-              <select className={inputCls} value={repoId} onChange={(e) => setRepoId(e.target.value)}>
+            <Field label="Repository or group">
+              <select className={inputCls} value={target} onChange={(e) => setTarget(e.target.value)}>
                 <option value="">None (no GitHub provenance)</option>
-                {repos.map((r) => <option key={r.id} value={r.id}>{r.full_name}</option>)}
+                {groups.length > 0 && <optgroup label="Repo groups">{groups.map((g) => <option key={g.id} value={`group:${g.id}`}>{g.name}</option>)}</optgroup>}
+                <optgroup label="Repositories">{repos.map((r) => <option key={r.id} value={`repo:${r.id}`}>{r.full_name}</option>)}</optgroup>
               </select>
             </Field>
           </div>

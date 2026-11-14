@@ -7,6 +7,7 @@ from app import audit
 from app.deps import Principal, current_principal
 from app.memory import governance, retrieval
 from app.memory import repository as mrepo
+from app.services import groups
 
 router = APIRouter(tags=["memory"])
 
@@ -25,6 +26,7 @@ class MemoryIn(BaseModel):
     scope: str = "org"
     team: str | None = None
     repo_id: str | None = None
+    group_id: str | None = None
     components: list[str] = []
     source_refs: list[SourceRefIn] = []
     expires_in_days: int | None = None
@@ -49,6 +51,7 @@ class CorrectIn(BaseModel):
 class SearchIn(BaseModel):
     query: str = Field(min_length=1)
     repo_id: str | None = None
+    group_id: str | None = None
 
 
 def _api(p: Principal, doc: dict) -> dict:
@@ -56,23 +59,25 @@ def _api(p: Principal, doc: dict) -> dict:
 
 
 @router.get("/memories")
-def list_memories(status: str | None = None, q: str | None = None, repo_id: str | None = None, p: Principal = Depends(current_principal)) -> list[dict]:
-    return governance.list_memories(p, status_filter=status, q=q, repo_id=repo_id)
+def list_memories(status: str | None = None, q: str | None = None, repo_id: str | None = None, group_id: str | None = None,
+                  p: Principal = Depends(current_principal)) -> list[dict]:
+    return governance.list_memories(p, status_filter=status, q=q, ctx=groups.context(p, repo_id=repo_id, group_id=group_id))
 
 
 @router.post("/memories")
 def create_memory(body: MemoryIn, p: Principal = Depends(current_principal)) -> dict:
     doc = governance.propose(p, title=body.title, content=body.content, memory_type=body.memory_type, scope=body.scope, team=body.team,
                              repo_id=body.repo_id, components=body.components, source_refs=[s.model_dump() for s in body.source_refs],
-                             expires_in_days=body.expires_in_days)
+                             expires_in_days=body.expires_in_days, group_id=body.group_id)
     return _api(p, doc)
 
 
 @router.post("/memories/search")
 def search_memories(body: SearchIn, p: Principal = Depends(current_principal)) -> dict:
-    results = retrieval.search(p, body.query, repo_id=body.repo_id)
-    return {"results": [{"memory": mrepo.to_api(r, p, repo_id=body.repo_id), "score": round(r["score"], 4)} for r in results],
-            "excluded": retrieval.excluded_count(p, body.repo_id)}
+    ctx = groups.context(p, repo_id=body.repo_id, group_id=body.group_id)
+    results = retrieval.search(p, body.query, ctx=ctx)
+    return {"results": [{"memory": mrepo.to_api(r, p, ctx=ctx), "score": round(r["score"], 4)} for r in results],
+            "excluded": retrieval.excluded_count(p, ctx)}
 
 
 @router.get("/memories/{memory_id}")

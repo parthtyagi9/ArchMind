@@ -21,7 +21,7 @@ MEMORY_SCHEMA = {"$jsonSchema": {
         "memory_id": {"bsonType": "string"},
         "version": {"bsonType": "int", "minimum": 1},
         "status": {"enum": ["pending", "active", "superseded", "invalidated", "rejected", "purged"]},
-        "scope": {"enum": ["org", "repo", "team"]},
+        "scope": {"enum": ["org", "repo", "team", "group"]},
         "authority": {"enum": ["agent_observed", "human", "verified"]},
         "memory_type": {"bsonType": "string"},
         "content": {"bsonType": "string"},
@@ -42,6 +42,7 @@ def vector_index_definition(dims: int) -> dict:
         {"type": "filter", "path": "scope"},
         {"type": "filter", "path": "team"},
         {"type": "filter", "path": "repo_id"},
+        {"type": "filter", "path": "group_id"},
     ]}
 
 
@@ -70,6 +71,8 @@ def main() -> None:
     db.memberships.create_indexes([IndexModel([("user_id", ASCENDING), ("org_id", ASCENDING)], unique=True), IndexModel([("org_id", ASCENDING)])])
     db.invites.create_indexes([IndexModel([("org_id", ASCENDING)]), IndexModel([("expires_at", ASCENDING)], expireAfterSeconds=86400, name="invite_cleanup")])
     db.repos.create_indexes([IndexModel([("org_id", ASCENDING), ("full_name", ASCENDING)], unique=True)])
+    db.repo_groups.create_indexes([IndexModel([("org_id", ASCENDING), ("name", ASCENDING)], unique=True),
+                                   IndexModel([("org_id", ASCENDING), ("repo_ids", ASCENDING)])])
     db.source_documents.create_indexes([
         IndexModel([("repo_id", ASCENDING), ("path", ASCENDING)], unique=True),
         # `language_override` points at a field our documents do not have: the default ("language") collides with our own
@@ -83,7 +86,8 @@ def main() -> None:
         IndexModel([("memory_id", ASCENDING)], unique=True, name="one_active_version", partialFilterExpression={"status": "active"}),
         IndexModel([("tenant_id", ASCENDING), ("status", ASCENDING), ("expires_at", ASCENDING)]),
     ])
-    db.agent_runs.create_indexes([IndexModel([("tenant_id", ASCENDING), ("created_at", DESCENDING)]), IndexModel([("tenant_id", ASCENDING), ("repo_id", ASCENDING)])])
+    db.agent_runs.create_indexes([IndexModel([("tenant_id", ASCENDING), ("created_at", DESCENDING)]), IndexModel([("tenant_id", ASCENDING), ("repo_id", ASCENDING)]),
+                                 IndexModel([("tenant_id", ASCENDING), ("group_id", ASCENDING)])])
     db.compares.create_index([("tenant_id", ASCENDING), ("created_at", DESCENDING)])
     db.audit_events.create_indexes([
         IndexModel([("tenant_id", ASCENDING), ("created_at", DESCENDING)]),
