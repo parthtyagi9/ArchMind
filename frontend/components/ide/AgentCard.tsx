@@ -44,7 +44,7 @@ export function AgentCard({ agent, focus, expandAll }: { agent: AgentStatus; foc
 
   const skipped = agent.status === "skipped";
   return (
-    <div ref={box} className={cn("rounded-md border px-2.5 py-2 text-[11px]", skipped ? "border-dashed border-line opacity-80" : agent.status === "error" ? "border-bad/40 bg-bad-soft" : "border-line bg-bg/40", agent.status === "pending" && "opacity-60")}>
+    <div ref={box} className={cn("rounded-md border px-2.5 py-2 text-[12px]", skipped ? "border-dashed border-line opacity-80" : agent.status === "error" ? "border-bad/40 bg-bad-soft" : "border-line bg-bg/40", agent.status === "pending" && "opacity-60")}>
       <button className="flex w-full items-center gap-2 text-left" disabled={!canOpen} onClick={() => setOpen((o) => !o)} aria-expanded={canOpen ? open : undefined}>
         <Icon className={cn("h-3.5 w-3.5", AGENT_META[agent.id].tone)} />
         <span className="font-medium">{agent.label}</span>
@@ -55,7 +55,7 @@ export function AgentCard({ agent, focus, expandAll }: { agent: AgentStatus; foc
       </button>
 
       {agent.tools.length > 0 && (
-        <div className="mt-1.5 space-y-0.5 border-l border-line pl-2 font-mono text-[10.5px] text-muted">
+        <div className="mt-1.5 space-y-0.5 border-l border-line pl-2 font-mono text-[11.5px] text-muted">
           {agent.tools.map((t, i) => (
             <div key={i} className="flex items-center gap-1.5" title={t.text}>
               {t.status === "running" ? <Loader2 className="h-2.5 w-2.5 shrink-0 animate-spin text-brand" /> : t.status === "error" ? <X className="h-2.5 w-2.5 shrink-0 text-bad" /> : <Check className="h-2.5 w-2.5 shrink-0 text-ok" />}
@@ -88,19 +88,19 @@ export function RunProgress({ run, focus, expandAll }: { run: Run; focus?: Focus
   const r = run.reasoning;
   return (
     <div className="rounded-lg border border-line bg-panel/70 p-2.5">
-      <div className="flex flex-wrap items-center gap-2 text-[11px]">
+      <div className="flex flex-wrap items-center gap-2 text-[12px]">
         {planning && run.status === "running" ? <Loader2 className="h-3.5 w-3.5 animate-spin text-brand" /> : <Check className="h-3.5 w-3.5 text-ok" />}
         <span className="font-medium">Orchestrator</span>
         <span className="text-muted">{planning ? (run.status === "running" ? "planning which sources to search…" : "stopped before a plan was made") : `plan: ${run.orchestrator.plan.length} sub-agent${run.orchestrator.plan.length === 1 ? "" : "s"}`}</span>
         {run.orchestrator.plan.map((p) => <Badge key={p} className="font-mono">{p}</Badge>)}
       </div>
-      {run.orchestrator.note && <p className="mt-1 pl-5 text-[11px] text-muted">{run.orchestrator.note}</p>}
+      {run.orchestrator.note && <p className="mt-1 pl-5 text-[12px] text-muted">{run.orchestrator.note}</p>}
 
       <div className="mt-2 space-y-1.5">
         {run.agents.map((a) => <AgentCard key={a.id} agent={a} focus={focus} expandAll={expandAll} />)}
       </div>
 
-      <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
+      <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px]">
         {r.status === "running" ? <Loader2 className="h-3.5 w-3.5 animate-spin text-brand" /> : r.status === "done" ? <Check className="h-3.5 w-3.5 text-ok" /> : r.status === "error" ? <X className="h-3.5 w-3.5 text-bad" /> : <Clock className="h-3.5 w-3.5 text-muted" />}
         <span className="font-medium">Reasoning agent</span>
         <span className="text-muted">

@@ -48,13 +48,13 @@ function GroupExplorer() {
           <span className="text-muted">{group.name} · {g.repos.length} repositor{g.repos.length === 1 ? "y" : "ies"} · {g.nodes.length} components · {g.stats.cross_repo_edges} cross-repo link{g.stats.cross_repo_edges === 1 ? "" : "s"}</span>
           {g.repos.length > 1 && g.stats.cross_repo_edges === 0 && stale.length === 0 && <Badge tone="warn">no calls or shared packages found between these repositories</Badge>}
           {highlight.length > 0 && (
-            <button onClick={() => setHighlight([])} className="ml-auto flex items-center gap-1 rounded-md bg-warn-soft px-2 py-1 text-[11px] text-warn hover:bg-warn/20">
+            <button onClick={() => setHighlight([])} className="ml-auto flex items-center gap-1 rounded-md bg-warn-soft px-2 py-1 text-[12px] text-warn hover:bg-warn/20">
               <X className="h-3 w-3" />Clear {highlight.length} highlighted component{highlight.length === 1 ? "" : "s"} from agent answer
             </button>
           )}
         </div>
         {stale.length > 0 && <StaleBanner repos={stale.map((r) => r.id)} onDone={graph.reload} />}
-        {notReady.length > 0 && <div className="border-b border-line bg-info-soft px-4 py-1.5 text-[11px] text-info">{notReady.map((r) => `${r.full_name} (${r.status})`).join(", ")}: not on the map until indexing succeeds.</div>}
+        {notReady.length > 0 && <div className="border-b border-line bg-info-soft px-4 py-1.5 text-[12px] text-info">{notReady.map((r) => `${r.full_name} (${r.status})`).join(", ")}: not on the map until indexing succeeds.</div>}
         <div className="relative min-h-0 flex-1 bg-[radial-gradient(circle,#1b1f2d_1px,transparent_1px)] [background-size:24px_24px]">
           <ArchGraph key={`${group.id}:${group.updated_at}:${g.repos.map((r) => r.id).join(",")}`} graph={g} grouped selected={activeNode} highlight={highlight} onSelect={setSelectedNode} />
         </div>
@@ -80,7 +80,7 @@ function StaleBanner({ repos, onDone }: { repos: string[]; onDone: () => void })
     } catch (e) { setErr(errorMessage(e)); } finally { setBusy(false); }
   };
   return (
-    <div className="flex flex-wrap items-center gap-2 border-b border-line bg-warn-soft px-4 py-1.5 text-[11px] text-warn">
+    <div className="flex flex-wrap items-center gap-2 border-b border-line bg-warn-soft px-4 py-1.5 text-[12px] text-warn">
       <span>{names.join(", ")} {names.length === 1 ? "was" : "were"} indexed before API and package detection. Reindex to find connections.</span>
       <Button size="sm" variant="outline" disabled={busy || !can("connect_repo")} onClick={() => void reindex()} title={can("connect_repo") ? undefined : "Requires the connect_repo permission"}>
         <RefreshCw className="h-3 w-3" />Reindex {names.length === 1 ? "it" : `all ${names.length}`}
@@ -94,13 +94,13 @@ function Unmatched({ g }: { g: GroupGraph }) {
   const [open, setOpen] = useState(false);
   if (g.unmatched_calls.length === 0) return null;
   return (
-    <div className="max-h-[40%] shrink-0 overflow-y-auto border-t border-line bg-panel/60 text-[11px]">
+    <div className="max-h-[40%] shrink-0 overflow-y-auto border-t border-line bg-panel/60 text-[12px]">
       <button onClick={() => setOpen(!open)} aria-expanded={open} className="flex w-full items-center gap-1.5 px-4 py-1.5 text-left text-muted hover:text-fg">
         {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
         {g.unmatched_calls.length}{g.unmatched_calls.length >= 100 ? "+" : ""} HTTP call{g.unmatched_calls.length === 1 ? "" : "s"} not served by any repository in this group (external APIs, or routes this analysis could not read)
       </button>
       {open && (
-        <table className="mb-2 w-full font-mono text-[10.5px]">
+        <table className="mb-2 w-full font-mono text-[11.5px]">
           <tbody>
             {g.unmatched_calls.map((c, i) => (
               <tr key={i} className="border-t border-line/50">
@@ -166,7 +166,7 @@ function RepoExplorer() {
           {g.edges.some((e) => e.kind === "calls_api") && <Badge tone="info">includes HTTP calls between components</Badge>}
           {g.edges.length === 0 && <Badge tone="warn">no import edges found</Badge>}
           {highlight.length > 0 && (
-            <button onClick={() => setHighlight([])} className="ml-auto flex items-center gap-1 rounded-md bg-warn-soft px-2 py-1 text-[11px] text-warn hover:bg-warn/20">
+            <button onClick={() => setHighlight([])} className="ml-auto flex items-center gap-1 rounded-md bg-warn-soft px-2 py-1 text-[12px] text-warn hover:bg-warn/20">
               <X className="h-3 w-3" />Clear {highlight.length} highlighted component{highlight.length === 1 ? "" : "s"} from agent answer
             </button>
           )}

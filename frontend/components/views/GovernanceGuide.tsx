@@ -2,8 +2,8 @@
 // Developer-facing explanations for the governance area: an overview page (lifecycle, where to go, who can do what,
 // how the agent uses memory) and a small "How this page works" guide shown on every governance page.
 import {
-  ArrowRight, Ban, BookOpenCheck, Brain, CheckCircle2, ChevronDown, ChevronRight, Clock3, FileClock, GitCompareArrows,
-  Hourglass, Lightbulb, ListChecks, MessageSquareText, PencilLine, ScrollText, Search, ShieldCheck, Trash2, XCircle,
+  ArrowRight, Ban, BookOpenCheck, Brain, CheckCircle2, ChevronDown, ChevronRight, FileClock, GitCompareArrows,
+  Hourglass, Lightbulb, ListChecks, ScrollText, ShieldCheck,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useApp } from "@/components/AppState";
@@ -81,20 +81,19 @@ const PAGE_GUIDE: Record<string, { points: string[]; who: string }> = {
 };
 
 export function PageGuide({ page }: { page: keyof typeof PAGE_GUIDE }) {
-  const key = `archmind.guide.${page}`;
-  const [open, setOpen] = useState(true);
-  useEffect(() => { try { if (localStorage.getItem(key) === "closed") setOpen(false); } catch {} }, [key]);
-  const toggle = () => { setOpen((o) => { try { localStorage.setItem(key, o ? "closed" : "open"); } catch {} return !o; }); };
+  const [open, setOpen] = useState(false);
   const g = PAGE_GUIDE[page];
   return (
-    <div className="mb-4 rounded-lg border border-info/30 bg-info/5">
-      <button onClick={toggle} aria-expanded={open} className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-info">
-        {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}How this page works
+    <div className="mb-4 rounded-lg border border-line bg-panel/70 text-[13px]">
+      <button onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-start gap-2 px-3 py-2 text-left">
+        <Lightbulb className="mt-0.5 h-4 w-4 shrink-0 text-warn" />
+        <span className="flex-1 text-fg/90">{g.points[0]}</span>
+        <span className="flex shrink-0 items-center gap-1 text-[12px] text-brand">{open ? "Less" : "How it works"}{open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}</span>
       </button>
       {open && (
-        <div className="space-y-2 px-3 pb-3 text-xs leading-relaxed">
-          <ul className="list-disc space-y-1 pl-5 text-fg/90">{g.points.map((p) => <li key={p}>{p}</li>)}</ul>
-          <p className="text-muted"><span className="font-medium text-fg/80">Who can do what: </span>{g.who}</p>
+        <div className="space-y-2 border-t border-line px-3 py-3 leading-relaxed">
+          <ul className="list-disc space-y-1 pl-5 text-fg/90">{g.points.slice(1).map((pt) => <li key={pt}>{pt}</li>)}</ul>
+          <p className="text-muted"><span className="font-medium text-fg/80">Who can do it: </span>{g.who}</p>
           {page === "memory" && <StatusLegend />}
         </div>
       )}
@@ -139,98 +138,72 @@ export function GovernanceOverview() {
 
   return (
     <>
-      <PageHeader title="Governance overview"
-        sub="ArchMind only lets the agent use knowledge a human approved, that you are allowed to see, and that has not expired. This page explains how, and where to go." />
+      <PageHeader title="Governance"
+        sub="The agent only uses knowledge a person approved, that you are allowed to see, and that has not expired." />
 
       {mems.error != null && <ErrorBanner error={mems.error} onRetry={mems.reload} className="mb-4" />}
 
-      {/* 1. lifecycle */}
-      <Card className="mb-4 p-4">
-        <h2 className="mb-1 text-sm font-semibold">1. The life of a memory</h2>
-        <p className="mb-4 text-xs text-muted">Only the green box is ever shown to the agent. Click a box to open the Memory Inspector.</p>
+      <Card className="mb-4 p-5">
+        <h2 className="text-[15px] font-semibold">The life of a memory</h2>
+        <p className="mb-4 mt-0.5 text-[13px] text-muted">The agent only ever sees the green box. Everything else is history.</p>
         <div className="flex flex-wrap items-stretch gap-2">
-          <Stage icon={Lightbulb} title="Proposed" sub="by a member or by the agent from an answer" tone="neutral" />
+          <Stage icon={Lightbulb} title="Proposed" sub="by a teammate or by the agent" tone="neutral" />
           <Arrow />
-          <Stage icon={Hourglass} title="Pending" count={n("pending")} sub="waits in the Approval Center" tone="warn" onClick={() => openPage("approvals")} />
-          <Arrow label="admin approves" />
-          <Stage icon={CheckCircle2} title="Active" count={n("active")} sub="retrieved by the agent and cited in answers" tone="ok" onClick={() => openPage("memory")} highlight />
+          <Stage icon={Hourglass} title="Pending" count={n("pending")} sub="waiting for an admin" tone="warn" onClick={() => openPage("approvals")} />
+          <Arrow label="approved" />
+          <Stage icon={CheckCircle2} title="Active" count={n("active")} sub="used and cited by the agent" tone="ok" onClick={() => openPage("memory")} highlight />
         </div>
-        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-          <Exit icon={PencilLine} title="Corrected" count={n("superseded")} sub="a new version replaces it; the old one becomes Superseded history" />
-          <Exit icon={Ban} title="Revoked" count={n("invalidated")} sub="switched off immediately, record kept for audit" />
-          <Exit icon={Clock3} title="Expired" count={n("expired")} sub="expiry date passed, excluded at query time" />
-          <Exit icon={XCircle} title="Rejected" count={n("rejected")} sub="proposal turned down, never retrievable" />
-          <Exit icon={Trash2} title="Purged" count={n("purged")} sub="content and embedding deleted, tombstone only" />
-        </div>
+        <p className="mt-3 text-[13px] text-muted">
+          Later an admin can <span className="text-fg">correct</span> it (new version), <span className="text-fg">revoke</span> it, or let it <span className="text-fg">expire</span>; an owner can <span className="text-fg">purge</span> it.
+          Inactive so far: {n("superseded")} superseded, {n("invalidated")} revoked, {n("expired")} expired, {n("rejected")} rejected.
+        </p>
       </Card>
 
-      {/* 2. where to go */}
-      <Card className="mb-4 p-4">
-        <h2 className="mb-3 text-sm font-semibold">2. Where do I go to…</h2>
-        <div className="grid gap-2 md:grid-cols-2">
-          {GOV_NAV.map((g) => (
-            <button key={g.page} onClick={() => openPage(g.page)}
-              className="group flex items-start gap-3 rounded-lg border border-line bg-panel-2 p-3 text-left transition-colors hover:border-brand">
-              <g.icon className="mt-0.5 h-4 w-4 shrink-0 text-brand" />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 text-[13px] font-medium">{g.question}
-                  {g.page === "approvals" && can("approve_memory") && pendingCount > 0 && <Badge tone="warn">{pendingCount} waiting</Badge>}
-                </div>
-                <div className="mt-0.5 text-[11px] text-brand">{g.label}</div>
-                <p className="mt-1 text-xs leading-relaxed text-muted">{g.what}</p>
+      <h2 className="mb-2 text-[15px] font-semibold">Where do I go to…</h2>
+      <div className="mb-4 grid gap-2 md:grid-cols-2">
+        {GOV_NAV.map((g) => (
+          <button key={g.page} onClick={() => openPage(g.page)}
+            className="group flex items-start gap-3 rounded-lg border border-line bg-panel p-3.5 text-left transition-colors hover:border-brand/70">
+            <g.icon className="mt-0.5 h-[18px] w-[18px] shrink-0 text-brand" />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 text-[14px] font-medium">{g.question}
+                {g.page === "approvals" && can("approve_memory") && pendingCount > 0 && <Badge tone="warn">{pendingCount} waiting</Badge>}
               </div>
-              <ArrowRight className="mt-1 h-3.5 w-3.5 shrink-0 text-muted transition-transform group-hover:translate-x-0.5 group-hover:text-brand" />
-            </button>
-          ))}
-        </div>
-      </Card>
+              <p className="mt-0.5 text-[13px] leading-relaxed text-muted">{g.what}</p>
+              <div className="mt-1.5 text-[12px] text-brand">Open {g.label}</div>
+            </div>
+          </button>
+        ))}
+      </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        {/* 3. how the agent uses memory */}
-        <Card className="p-4">
-          <h2 className="mb-3 text-sm font-semibold">3. How the agent uses memory</h2>
-          <ol className="space-y-3 text-xs leading-relaxed">
-            <Step n={1} icon={MessageSquareText} title="You ask a question">Or select code and click <span className="text-brand">Why does this exist?</span></Step>
-            <Step n={2} icon={Search} title="Governed search in MongoDB Atlas">
-              Atlas Vector Search runs with filters inside the query: your organization, Active only, not expired, and scope (organization, this repository, or your team). Nothing else can reach the model.
-            </Step>
-            <Step n={3} icon={Brain} title="Reasoning with citations">
-              The answer must cite the memories it relied on. Citations that were not actually retrieved are removed.
-            </Step>
-            <Step n={4} icon={ShieldCheck} title="You stay in control">
-              Turn memory off in the chat, compare with and without memory, or propose the answer as a new memory for review.
-            </Step>
-          </ol>
-        </Card>
-
-        {/* 4. roles */}
-        <Card className="p-4">
-          <h2 className="mb-1 text-sm font-semibold">4. Who can do what</h2>
-          <p className="mb-3 text-xs text-muted">You are <span className="font-medium text-fg">{role}</span> in {me.org.name}{me.org.team ? `, team ${me.org.team}` : ""}.</p>
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="text-left text-[11px] uppercase tracking-wider text-muted">
-                <th className="pb-2 font-medium">Action</th>
+      <details className="rounded-lg border border-line bg-panel p-4 [&_summary::-webkit-details-marker]:hidden">
+        <summary className="flex cursor-pointer items-center gap-2 text-[14px] font-medium">
+          <ShieldCheck className="h-4 w-4 text-brand" />Who can do what
+          <span className="text-[13px] font-normal text-muted">You are {role} in {me.org.name}{me.org.team ? `, team ${me.org.team}` : ""}.</span>
+        </summary>
+        <table className="mt-3 w-full text-[13px]">
+          <thead>
+            <tr className="text-left text-[12px] text-muted">
+              <th className="pb-2 font-medium">Action</th>
+              {(["member", "admin", "owner"] as const).map((r) => (
+                <th key={r} className={cn("pb-2 text-center font-medium capitalize", r === role && "text-brand")}>{r}{r === role ? " (you)" : ""}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {ROLE_ROWS.map((row) => (
+              <tr key={row.action} className="border-t border-line">
+                <td className="py-1.5 pr-2">{row.action}</td>
                 {(["member", "admin", "owner"] as const).map((r) => (
-                  <th key={r} className={cn("pb-2 text-center font-medium", r === role && "text-brand")}>{r}{r === role ? " (you)" : ""}</th>
+                  <td key={r} className={cn("py-1.5 text-center", r === role && "bg-brand-soft/40")}>
+                    {row[r] ? <CheckCircle2 className="mx-auto h-4 w-4 text-ok" aria-label="allowed" /> : <span className="text-muted" aria-label="not allowed">–</span>}
+                  </td>
                 ))}
               </tr>
-            </thead>
-            <tbody>
-              {ROLE_ROWS.map((row) => (
-                <tr key={row.action} className="border-t border-line">
-                  <td className="py-1.5 pr-2">{row.action}</td>
-                  {(["member", "admin", "owner"] as const).map((r) => (
-                    <td key={r} className={cn("py-1.5 text-center", r === role && "bg-brand-soft/40")}>
-                      {row[r] ? <CheckCircle2 className="mx-auto h-3.5 w-3.5 text-ok" aria-label="allowed" /> : <span className="text-muted" aria-label="not allowed">–</span>}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </Card>
-      </div>
+            ))}
+          </tbody>
+        </table>
+      </details>
     </>
   );
 }
@@ -245,7 +218,7 @@ function Stage({ icon: Icon, title, sub, count, tone, onClick, highlight }: {
       <div className="flex items-center gap-2 text-[13px] font-semibold"><Icon className="h-4 w-4" />{title}
         {count !== undefined && <Badge tone={tone} className="ml-auto">{count}</Badge>}
       </div>
-      <p className="mt-1 text-[11px] leading-snug text-muted">{sub}</p>
+      <p className="mt-1 text-[12px] leading-snug text-muted">{sub}</p>
     </Tag>
   );
 }
@@ -254,28 +227,8 @@ function Arrow({ label }: { label?: string }) {
   return (
     <div className="flex flex-col items-center justify-center px-1 text-muted">
       <ArrowRight className="h-4 w-4" />
-      {label && <span className="mt-0.5 whitespace-nowrap text-[10px]">{label}</span>}
+      {label && <span className="mt-0.5 whitespace-nowrap text-[11px]">{label}</span>}
     </div>
   );
 }
 
-function Exit({ icon: Icon, title, sub, count }: { icon: typeof Brain; title: string; sub: string; count: number | string }) {
-  return (
-    <div className="rounded-lg border border-dashed border-line p-2.5">
-      <div className="flex items-center gap-1.5 text-xs font-medium"><Icon className="h-3.5 w-3.5 text-muted" />{title}<Badge className="ml-auto">{count}</Badge></div>
-      <p className="mt-1 text-[11px] leading-snug text-muted">{sub}</p>
-    </div>
-  );
-}
-
-function Step({ n, icon: Icon, title, children }: { n: number; icon: typeof Brain; title: string; children: React.ReactNode }) {
-  return (
-    <li className="flex gap-3">
-      <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-brand-soft text-[11px] font-semibold text-brand">{n}</span>
-      <div>
-        <div className="flex items-center gap-1.5 font-medium text-fg"><Icon className="h-3.5 w-3.5 text-brand" />{title}</div>
-        <p className="text-muted">{children}</p>
-      </div>
-    </li>
-  );
-}

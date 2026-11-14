@@ -5,7 +5,7 @@ import { layoutGraph, layoutGroups, type LaidEdge } from "@/lib/graphLayout";
 import type { EdgeKind, Graph, GraphNode } from "@/lib/types";
 
 export const KIND_COLOR: Record<GraphNode["kind"], string> = {
-  service: "#7c8cff",
+  service: "#4fb3ff",
   package: "#38bdf8",
   module: "#a78bfa",
   datastore: "#34d399",
@@ -110,7 +110,7 @@ export function ArchGraph({ graph, selected, highlight, onSelect, grouped }: Pro
       >
         <defs>
           <marker id="arch-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#5b6385" /></marker>
-          <marker id="arch-arrow-on" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#7c8cff" /></marker>
+          <marker id="arch-arrow-on" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#4fb3ff" /></marker>
           {(["calls_api", "depends_on_package"] as const).map((k) => (
             <marker key={k} id={`arch-arrow-${k}`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill={EDGE_STYLE[k].color} /></marker>
           ))}
@@ -118,7 +118,7 @@ export function ArchGraph({ graph, selected, highlight, onSelect, grouped }: Pro
         <g transform={`translate(${view.x} ${view.y}) scale(${view.k})`}>
           {layout.clusters.map((c) => (
             <g key={c.id} pointerEvents="none">
-              <rect x={c.x} y={c.y} width={c.w} height={c.h} rx={16} fill="#7c8cff08" stroke="#7c8cff40" strokeDasharray="4 4" />
+              <rect x={c.x} y={c.y} width={c.w} height={c.h} rx={16} fill="#4fb3ff08" stroke="#4fb3ff40" strokeDasharray="4 4" />
               <text x={c.x + 14} y={c.y + 18} fill="#a7b0ff" fontSize={12} fontWeight={600} fontFamily="ui-monospace, monospace">{c.label}</text>
             </g>
           ))}
@@ -137,7 +137,7 @@ export function ArchGraph({ graph, selected, highlight, onSelect, grouped }: Pro
             const label = (n?: GraphNode) => (n ? (grouped && n.repo_name ? `${n.repo_name} · ${n.label}` : n.label) : "?");
             return (
               <path key={i} d={`M${x1},${y1} C${x1 + dx},${y1} ${x2 - dx},${y2} ${x2},${y2}`} fill="none"
-                stroke={plain ? (on || lit ? "#7c8cff" : st.color) : st.color} strokeWidth={plain ? width : Math.max(1.6, width)}
+                stroke={plain ? (on || lit ? "#4fb3ff" : st.color) : st.color} strokeWidth={plain ? width : Math.max(1.6, width)}
                 strokeDasharray={plain ? (e.cyclic ? "6 5" : undefined) : st.dash}
                 opacity={focus && !on && !lit ? 0.15 : plain ? 0.8 : 0.95} markerEnd={`url(#arch-arrow${plain ? (on || lit ? "-on" : "") : `-${e.kind}`})`}>
                 <title>{edgeTitle(e, label(nodeById.get(e.from)), label(nodeById.get(e.to)))}</title>
@@ -162,7 +162,7 @@ export function ArchGraph({ graph, selected, highlight, onSelect, grouped }: Pro
                 <text x={16} y={p.h / 2 + 11} fill="#8a90a8" fontSize={10} dominantBaseline="middle">{n.kind} · {n.file_count} file{n.file_count === 1 ? "" : "s"}{n.loc > 0 ? ` · ${n.loc.toLocaleString()} loc` : ""}</text>
                 {n.memory_count > 0 && (
                   <g transform={`translate(${p.w - 4} 4)`}>
-                    <rect x={-40} y={-2} width={44} height={16} rx={8} fill="#7c8cff" />
+                    <rect x={-40} y={-2} width={44} height={16} rx={8} fill="#4fb3ff" />
                     <text x={-18} y={6.5} fill="#0a0b10" fontSize={10} fontWeight={700} textAnchor="middle" dominantBaseline="middle">◆ {n.memory_count}</text>
                   </g>
                 )}
@@ -178,7 +178,7 @@ export function ArchGraph({ graph, selected, highlight, onSelect, grouped }: Pro
         <button onClick={() => zoomBy(0.8)} aria-label="Zoom out" className="grid h-7 w-7 place-items-center rounded text-muted hover:bg-line/60 hover:text-fg"><Minus className="h-3.5 w-3.5" /></button>
         <button onClick={fit} aria-label="Fit to view" className="grid h-7 w-7 place-items-center rounded text-muted hover:bg-line/60 hover:text-fg"><Maximize className="h-3.5 w-3.5" /></button>
       </div>
-      <div className="pointer-events-none absolute bottom-3 left-3 flex flex-wrap gap-x-3 gap-y-1 rounded-lg border border-line bg-panel/90 px-2.5 py-1.5 text-[10px] text-muted">
+      <div className="pointer-events-none absolute bottom-3 left-3 flex flex-wrap gap-x-3 gap-y-1 rounded-lg border border-line bg-panel/90 px-2.5 py-1.5 text-[11px] text-muted">
         {(Object.keys(KIND_COLOR) as GraphNode["kind"][]).map((k) => <span key={k} className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm" style={{ background: KIND_COLOR[k] }} />{k}</span>)}
         {(["calls_api", "depends_on_package"] as const).filter((k) => kinds.has(k)).map((k) => (
           <span key={k} className="flex items-center gap-1"><svg width="18" height="6" aria-hidden><line x1="0" y1="3" x2="18" y2="3" stroke={EDGE_STYLE[k].color} strokeWidth="2" strokeDasharray={EDGE_STYLE[k].dash} /></svg>{EDGE_STYLE[k].label}</span>

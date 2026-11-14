@@ -65,7 +65,6 @@ export function AuthScreen() {
 
   return (
     <div className="relative grid min-h-screen place-items-center overflow-y-auto px-6 py-10">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(800px_400px_at_50%_20%,#7c8cff1a,transparent_70%)]" />
       <div className="relative w-full max-w-sm">
         <div className="mb-6 flex items-center justify-center gap-3">
           <div className="grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br from-brand to-info"><Layers className="h-5 w-5 text-[#0a0b10]" /></div>
@@ -99,7 +98,7 @@ export function AuthScreen() {
 
             {mode === "register" && (
               <div className="space-y-2">
-                <div role="radiogroup" aria-label="Organization" className="grid grid-cols-2 rounded-lg bg-panel-2 p-1 text-[11px]">
+                <div role="radiogroup" aria-label="Organization" className="grid grid-cols-2 rounded-lg bg-panel-2 p-1 text-[12px]">
                   {(["create", "join"] as const).map((c) => (
                     <button key={c} type="button" role="radio" aria-checked={orgChoice === c} onClick={() => setOrgChoice(c)}
                       className={cn("rounded-md py-1.5", orgChoice === c ? "bg-line text-fg" : "text-muted hover:text-fg")}>
@@ -126,7 +125,7 @@ export function AuthScreen() {
 
           {githubOauth && (
             <>
-              <div className="my-4 flex items-center gap-3 text-[11px] text-muted"><span className="h-px flex-1 bg-line" />or<span className="h-px flex-1 bg-line" /></div>
+              <div className="my-4 flex items-center gap-3 text-[12px] text-muted"><span className="h-px flex-1 bg-line" />or<span className="h-px flex-1 bg-line" /></div>
               <a href={githubHref} className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-line bg-panel-2 text-sm font-medium hover:bg-line/60">
                 <GithubMark className="h-4 w-4" />Continue with GitHub
               </a>

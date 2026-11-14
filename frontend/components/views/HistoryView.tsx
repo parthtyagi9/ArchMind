@@ -61,7 +61,7 @@ export function HistoryView() {
       {events.data && events.data.length > 0 && (
         <Card className="p-2">
           <ol>{events.data.map((e) => <EventRow key={e.id} e={e} onMemory={openMemory} onRun={openRun} />)}</ol>
-          {events.data.length >= 200 && <p className="px-3 py-2 text-[11px] text-muted">Showing the 200 most recent events. Use the filters to narrow down.</p>}
+          {events.data.length >= 200 && <p className="px-3 py-2 text-[12px] text-muted">Showing the 200 most recent events. Use the filters to narrow down.</p>}
         </Card>
       )}
     </>
@@ -77,14 +77,14 @@ function EventRow({ e, onMemory, onRun }: { e: AuditEvent; onMemory: (id: string
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <Badge tone={m.tone}>{m.label}</Badge>
-          <span className="font-mono text-[11px] text-muted">{e.type}</span>
-          {e.memory_id && <button onClick={() => onMemory(e.memory_id!)} className="font-mono text-[11px] text-brand hover:underline">{e.memory_id}</button>}
-          {e.run_id && <button onClick={() => onRun(e.run_id!)} className="font-mono text-[11px] text-brand hover:underline">{e.run_id}</button>}
-          <span className="ml-auto font-mono text-[11px] text-muted">{fmtDate(e.at)}</span>
+          <span className="font-mono text-[12px] text-muted">{e.type}</span>
+          {e.memory_id && <button onClick={() => onMemory(e.memory_id!)} className="font-mono text-[12px] text-brand hover:underline">{e.memory_id}</button>}
+          {e.run_id && <button onClick={() => onRun(e.run_id!)} className="font-mono text-[12px] text-brand hover:underline">{e.run_id}</button>}
+          <span className="ml-auto font-mono text-[12px] text-muted">{fmtDate(e.at)}</span>
         </div>
-        <p className="mt-1 text-[11px] text-muted/80">by {e.actor?.name ?? "system"}</p>
+        <p className="mt-1 text-[12px] text-muted/80">by {e.actor?.name ?? "system"}</p>
         {entries.length > 0 && (
-          <dl className="mt-1.5 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-[11px]">
+          <dl className="mt-1.5 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-[12px]">
             {entries.map(([k, v]) => (<div key={k} className="contents"><dt className="text-muted">{k}</dt><dd className="min-w-0 break-words font-mono text-fg/90">{renderValue(v)}</dd></div>))}
           </dl>
         )}

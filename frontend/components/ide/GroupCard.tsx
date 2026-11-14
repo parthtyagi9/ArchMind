@@ -32,20 +32,20 @@ export function GroupCard({ group }: { group: Group }) {
         <Boxes className="mt-0.5 h-4 w-4 shrink-0 text-brand" />
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-medium" title={group.name}>{group.name}</div>
-          {group.description && <p className="mt-0.5 line-clamp-2 text-[11px] text-muted">{group.description}</p>}
+          {group.description && <p className="mt-0.5 line-clamp-2 text-[12px] text-muted">{group.description}</p>}
         </div>
         <Badge tone="brand">{members.length} repo{members.length === 1 ? "" : "s"}</Badge>
       </div>
 
       <div className="mt-3 flex flex-wrap gap-1">
-        {members.length === 0 && <span className="text-[11px] text-muted">No repositories yet. Open the group to add or connect some.</span>}
+        {members.length === 0 && <span className="text-[12px] text-muted">No repositories yet. Open the group to add or connect some.</span>}
         {members.map((r) => (
           <Badge key={r.id} tone={r.status === "ready" ? "neutral" : r.status === "failed" ? "bad" : "info"} className="max-w-full font-mono">
             <span className="truncate">{r.full_name}</span>{r.status !== "ready" && ` · ${r.status}`}
           </Badge>
         ))}
       </div>
-      <div className="mt-2 text-[11px] text-muted">{files.toLocaleString()} files indexed{indexing > 0 ? ` · ${indexing} still indexing` : ""}</div>
+      <div className="mt-2 text-[12px] text-muted">{files.toLocaleString()} files indexed{indexing > 0 ? ` · ${indexing} still indexing` : ""}</div>
 
       {error && <ErrorBanner error={error} className="mt-3" />}
 
@@ -55,7 +55,7 @@ export function GroupCard({ group }: { group: Group }) {
           <Pencil className="h-3 w-3" />Edit
         </Button>
         {confirm ? (
-          <span className="ml-auto flex items-center gap-1.5 text-[11px]">
+          <span className="ml-auto flex items-center gap-1.5 text-[12px]">
             <span className="text-muted">Delete group?</span>
             <Button size="sm" variant="danger" disabled={busy} onClick={() => void remove()}>{busy ? <Spinner className="h-3 w-3" /> : <Check className="h-3 w-3" />}Delete</Button>
             <Button size="sm" variant="ghost" onClick={() => setConfirm(false)}>Cancel</Button>

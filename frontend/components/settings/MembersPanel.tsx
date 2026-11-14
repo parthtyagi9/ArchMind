@@ -62,7 +62,7 @@ function MemberRow({ member, canManage, onChanged, onRemoved }: { member: OrgMem
       <div className="flex flex-wrap items-center gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2"><span className="truncate font-medium">{member.name}</span>{isSelf && <Badge tone="brand">you</Badge>}</div>
-          <div className="truncate text-[11px] text-muted">{member.email}</div>
+          <div className="truncate text-[12px] text-muted">{member.email}</div>
         </div>
         <select aria-label={`Role of ${member.name}`} value={role} onChange={(e) => setRole(e.target.value as Role)} disabled={disabled}
           title={isSelf ? "You cannot change your own role" : canManage ? undefined : "Requires manage_members (owner)"} className={cn(inputCls, "w-28")}>

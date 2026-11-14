@@ -74,7 +74,7 @@ export function CompareView() {
           </div>
           <Field label="Question"><textarea className={textareaCls} rows={2} value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="Why does this exist? Or ask an architecture question." required /></Field>
           {selection && (
-            <div className="rounded-lg border border-brand/30 bg-brand-soft p-2 text-[11px]">
+            <div className="rounded-lg border border-brand/30 bg-brand-soft p-2 text-[12px]">
               <div className="flex items-center gap-2"><span className="font-mono text-brand">{selection.path} · {selLabel(selection)}</span><button type="button" onClick={() => setSelection(null)} aria-label="Remove selection" className="ml-auto text-muted hover:text-fg"><X className="h-3 w-3" /></button></div>
               <pre className="mt-1 max-h-20 overflow-auto font-mono text-muted">{selection.text}</pre>
             </div>
@@ -82,7 +82,7 @@ export function CompareView() {
           {error && <ErrorBanner error={error} />}
           <div className="flex items-center gap-3">
             <Button type="submit" disabled={!canAsk || busy || !question.trim()} title={canAsk ? undefined : "Requires the ask permission"}>{busy ? <Spinner className="h-3.5 w-3.5 text-[#0a0b10]" /> : <GitCompareArrows className="h-4 w-4" />}Compare with and without memory</Button>
-            {!canAsk && <span className="text-[11px] text-muted">Your role cannot ask questions.</span>}
+            {!canAsk && <span className="text-[12px] text-muted">Your role cannot ask questions.</span>}
           </div>
         </form>
       </Card>
@@ -126,7 +126,7 @@ function CompareResult({ id }: { id: string }) {
             <ul className="space-y-2">
               {c.diff.map((d, i) => (
                 <li key={`${d.field}-${i}`} className="rounded-lg border border-line bg-panel-2 p-2.5">
-                  <div className="mb-1 font-mono text-[11px] text-brand">{d.field}</div>
+                  <div className="mb-1 font-mono text-[12px] text-brand">{d.field}</div>
                   <div className="flex flex-wrap items-start gap-2"><span className="min-w-0 flex-1 break-words text-muted line-through decoration-bad/60">{d.without || "(empty)"}</span><ArrowRight className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted" /><span className="min-w-0 flex-1 break-words text-fg">{d.with || "(empty)"}</span></div>
                 </li>
               ))}
@@ -160,7 +160,7 @@ function Arm({ title, sub, answer, highlight }: { title: string; sub: string; an
             <div className="flex flex-wrap items-center gap-2"><VerdictBadge verdict={answer.guidance.verdict} /><Badge>confidence: {answer.confidence}</Badge></div>
             <div className="text-[13px] font-semibold">{answer.headline}</div>
             <GuidanceBlock guidance={answer.guidance} />
-            <div><Label>Verdict value</Label><code className="font-mono text-[11px] text-muted">{answer.guidance.verdict}</code></div>
+            <div><Label>Verdict value</Label><code className="font-mono text-[12px] text-muted">{answer.guidance.verdict}</code></div>
           </>
         )}
       </div>

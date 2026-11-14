@@ -60,7 +60,7 @@ const tones = {
 export type Tone = keyof typeof tones;
 
 export function Badge({ tone = "neutral", className, ...p }: React.HTMLAttributes<HTMLSpanElement> & { tone?: Tone }) {
-  return <span className={cn("inline-flex items-center gap-1 whitespace-nowrap rounded-md px-2 py-0.5 text-[11px] font-medium", tones[tone], className)} {...p} />;
+  return <span className={cn("inline-flex items-center gap-1 whitespace-nowrap rounded-md px-2 py-0.5 text-[12px] font-medium", tones[tone], className)} {...p} />;
 }
 
 export function PageHeader({ title, sub, right }: { title: string; sub: string; right?: React.ReactNode }) {
@@ -76,7 +76,7 @@ export function PageHeader({ title, sub, right }: { title: string; sub: string; 
 }
 
 export function Label({ children }: { children: React.ReactNode }) {
-  return <div className="mb-1 text-[11px] font-medium uppercase tracking-wider text-muted">{children}</div>;
+  return <div className="mb-1 text-[12px] font-medium text-muted">{children}</div>;
 }
 
 export function Empty({ children }: { children: React.ReactNode }) {
@@ -116,9 +116,9 @@ export function InfoBanner({ tone = "warn", children, className }: { tone?: "war
 export function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-[11px] font-medium uppercase tracking-wider text-muted">{label}</span>
+      <span className="mb-1 block text-[12px] font-medium text-muted">{label}</span>
       {children}
-      {hint && <span className="mt-1 block text-[11px] text-muted">{hint}</span>}
+      {hint && <span className="mt-1 block text-[12px] text-muted">{hint}</span>}
     </label>
   );
 }
@@ -127,7 +127,7 @@ export function Chip({ active, onClick, children, count }: { active: boolean; on
   return (
     <button type="button" onClick={onClick} aria-pressed={active} className={cn("flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs capitalize", active ? "bg-brand-soft text-brand" : "text-muted hover:bg-line/50")}>
       {children}
-      {count !== undefined && <span className="rounded bg-line/60 px-1 font-mono text-[10px]">{count}</span>}
+      {count !== undefined && <span className="rounded bg-line/60 px-1 font-mono text-[11px]">{count}</span>}
     </button>
   );
 }

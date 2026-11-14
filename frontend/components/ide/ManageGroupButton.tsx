@@ -18,7 +18,7 @@ export function ManageGroupButton({ variant = "link", className }: { variant?: "
         <Button size="sm" disabled={!allowed} title={title} onClick={() => setOpen(true)} className={className}><Plus className="h-3.5 w-3.5" />Add repositories</Button>
       ) : (
         <button disabled={!allowed} title={title} onClick={() => setOpen(true)}
-          className={cn("flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] text-brand hover:bg-line/50 disabled:cursor-not-allowed disabled:opacity-50", className)}>
+          className={cn("flex items-center gap-1 rounded-md px-2 py-0.5 text-[12px] text-brand hover:bg-line/50 disabled:cursor-not-allowed disabled:opacity-50", className)}>
           <Plus className="h-3 w-3" />Add repositories
         </button>
       )}

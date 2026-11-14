@@ -1,5 +1,5 @@
 "use client";
-import { Brain, Code2, MessageSquareText, Send, ShieldCheck, Sparkles, X } from "lucide-react";
+import { Brain, Code2, Send, Sparkles, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useApp } from "@/components/AppState";
 import { SubmitState, ThreadEntry, type ThreadItem } from "@/components/ide/ThreadEntry";
@@ -86,13 +86,13 @@ export function ChatPanel() {
       <div className="flex items-center gap-2 border-b border-line px-3 py-2">
         <Sparkles className="h-4 w-4 text-brand" />
         <span className="text-xs font-semibold">ArchMind</span>
-        <button onClick={() => setMemoryOn(!memoryOn)} aria-pressed={memoryOn} className="ml-auto flex items-center gap-1.5 rounded-md border border-line px-2 py-1 text-[11px]"
+        <button onClick={() => setMemoryOn(!memoryOn)} aria-pressed={memoryOn} className="ml-auto flex items-center gap-1.5 rounded-md border border-line px-2 py-1 text-[12px]"
           title="When off, runs are made without any organizational memory (memory_enabled: false)">
           <Brain className={cn("h-3 w-3", memoryOn ? "text-ok" : "text-muted")} />
           <span className={memoryOn ? "text-ok" : "text-muted"}>Governed memory {memoryOn ? "on" : "off"}</span>
         </button>
       </div>
-      <div className={cn("border-b border-line px-3 py-1.5 text-[11px] leading-snug", memoryOn ? "text-muted" : "bg-warn-soft/40 text-warn")}>
+      <div className={cn("border-b border-line px-3 py-1.5 text-[12px] leading-snug", memoryOn ? "text-muted" : "bg-warn-soft/40 text-warn")}>
         {memoryOn
           ? <>Answers use <span className="text-fg">approved</span> organizational memories you are allowed to see. <button className="text-brand hover:underline" onClick={() => openPage("governance")}>How?</button></>
           : <>Memory is off: answers ignore every organizational decision and rule. Use this to see the agent's unconstrained answer.</>}
@@ -111,20 +111,18 @@ export function ChatPanel() {
             <div className="text-center">
               <div className="mx-auto grid h-10 w-10 place-items-center rounded-xl bg-brand-soft"><Sparkles className="h-5 w-5 text-brand" /></div>
               <p className="mt-2 text-sm text-fg">Ask why anything exists</p>
-              <p className="mt-1 leading-relaxed">Answers are built from code, history, tickets, docs and your organization's approved memory, with every source cited.</p>
+              <p className="mt-1 leading-relaxed">Every answer cites the code, history, tickets and approved team knowledge it used.</p>
             </div>
-            <ol className="space-y-2 rounded-lg border border-line bg-panel-2 p-3">
-              <HowStep n={1} icon={Code2}>Select code in the editor and click <span className="text-brand">Why does this exist?</span>, or type a question below.</HowStep>
-              <HowStep n={2} icon={MessageSquareText}>Four sub-agents search GitHub, Jira, Confluence and governed memory in parallel; you can watch each one.</HowStep>
-              <HowStep n={3} icon={ShieldCheck}>Read the verdict and its citations. Compare with/without memory, or propose the answer as a memory for review.</HowStep>
-            </ol>
+            <p className="rounded-lg border border-line bg-panel-2 px-3 py-2.5 text-[13px] leading-relaxed">
+              <Code2 className="mr-1 inline h-4 w-4 text-brand" />Select code and click <span className="text-brand">Why does this exist?</span>, or ask anything below.
+            </p>
             {canAsk && (
               <div>
-                <div className="mb-1.5 text-[10px] font-medium uppercase tracking-wider">Try asking</div>
+                <div className="mb-1.5 text-[11px] font-medium ">Try asking</div>
                 <div className="space-y-1.5">
                   {STARTERS.map((q) => (
                     <button key={q} onClick={() => submit(q, null)}
-                      className="block w-full rounded-lg border border-line bg-panel-2 px-3 py-2 text-left text-[12px] text-fg/90 transition-colors hover:border-brand hover:text-fg">{q}</button>
+                      className="block w-full rounded-lg border border-line bg-panel-2 px-3 py-2 text-left text-[13px] text-fg/90 transition-colors hover:border-brand hover:text-fg">{q}</button>
                   ))}
                 </div>
               </div>
@@ -138,7 +136,7 @@ export function ChatPanel() {
 
       <div className="border-t border-line p-3">
         {pendingSelection && (
-          <div className="mb-2 rounded-lg border border-brand/30 bg-brand-soft p-2 text-[11px]">
+          <div className="mb-2 rounded-lg border border-brand/30 bg-brand-soft p-2 text-[12px]">
             <div className="flex items-center gap-2">
               <span className="font-mono text-brand">{selLabel(pendingSelection)}</span>
               <button className="ml-auto text-muted hover:text-fg" aria-label="Remove selection" onClick={() => setPendingSelection(null)}><X className="h-3 w-3" /></button>
@@ -152,7 +150,7 @@ export function ChatPanel() {
             className="h-9 min-w-0 flex-1 rounded-lg border border-line bg-panel-2 px-3 text-xs outline-none placeholder:text-muted/70 focus:border-brand disabled:opacity-60" />
           <Button type="submit" size="sm" className="h-9" disabled={!canAsk || (!text.trim() && !pendingSelection)} aria-label="Send"><Send className="h-3.5 w-3.5" /></Button>
         </form>
-        <div className="mt-1.5 text-[10px] text-muted">as {me.user.name} · {me.org.name}{me.org.team ? ` · team ${me.org.team}` : ""} · memory {memoryOn ? "on" : "off"}</div>
+        <div className="mt-1.5 text-[11px] text-muted">as {me.user.name} · {me.org.name}{me.org.team ? ` · team ${me.org.team}` : ""} · memory {memoryOn ? "on" : "off"}</div>
       </div>
     </div>
   );
@@ -163,12 +161,3 @@ const STARTERS = [
   "Which approved decisions or rules should I know before changing this repository?",
   "Is it safe to change the default configuration values in this project? What could break?",
 ];
-
-function HowStep({ n, icon: Icon, children }: { n: number; icon: typeof Code2; children: React.ReactNode }) {
-  return (
-    <li className="flex gap-2.5 leading-relaxed">
-      <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-brand-soft text-[10px] font-semibold text-brand">{n}</span>
-      <span><Icon className="mr-1 inline h-3.5 w-3.5 text-brand" />{children}</span>
-    </li>
-  );
-}

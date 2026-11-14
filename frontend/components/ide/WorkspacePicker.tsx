@@ -68,13 +68,13 @@ export function WorkspacePicker() {
         <div className="mx-auto max-w-5xl">
           <div className="mb-6">
             <h1 className="text-xl font-semibold tracking-tight">Open a workspace</h1>
-            <p className="mt-1 text-xs text-muted">Select any code and ask why it exists. Sub-agents search GitHub, Jira, Confluence and your organization&apos;s governed memory for the answer.</p>
+            <p className="mt-1 text-xs text-muted">Pick a repository, then select any code and ask why it exists.</p>
           </div>
 
           {notice && (
             <InfoBanner tone={notice.kind === "ok" ? "ok" : "warn"} className="mb-4 flex items-start gap-2">
               <span className="flex-1">{notice.text}</span>
-              <button onClick={() => setNotice(null)} className="text-[11px] underline">Dismiss</button>
+              <button onClick={() => setNotice(null)} className="text-[12px] underline">Dismiss</button>
             </InfoBanner>
           )}
 
@@ -94,9 +94,7 @@ export function WorkspacePicker() {
               <div className="flex items-start gap-3 rounded-xl border border-dashed border-line px-4 py-4">
                 <Boxes className="mt-0.5 h-5 w-5 shrink-0 text-muted" />
                 <div className="text-xs leading-relaxed text-muted">
-                  <span className="font-medium text-fg">Split across several repositories?</span> Put them in a group, for example a frontend and a backend
-                  repo for one product. The group&apos;s architecture map shows which frontend calls hit which backend routes and which packages are shared,
-                  and questions asked in the group search every repository.
+                  <span className="font-medium text-fg">Product split across repos?</span> Group them to get one architecture map and ask questions across all of them.
                 </div>
               </div>
             )}
@@ -111,7 +109,7 @@ export function WorkspacePicker() {
                 <Plus className="h-3.5 w-3.5" />Connect GitHub repository
               </Button>
             </div>
-            {!can("connect_repo") && <p className="mb-3 text-[11px] text-muted">Your role ({me.org.role}) cannot connect repositories. Ask an admin or owner to connect one.</p>}
+            {!can("connect_repo") && <p className="mb-3 text-[12px] text-muted">Your role ({me.org.role}) cannot connect repositories. Ask an admin or owner to connect one.</p>}
 
             {reposError && <ErrorBanner error={reposError} onRetry={() => void refreshRepos()} className="mb-3" />}
             {reposLoading && repos.length === 0 ? (
@@ -141,11 +139,11 @@ export function WorkspacePicker() {
               </button>
             </div>
             {localError && <p role="alert" className="mt-2 text-xs text-bad">{localError}</p>}
-            <p className="mt-2 text-[11px] leading-relaxed text-muted">Local files are read in your browser and never uploaded. A local workspace has no GitHub provenance: the GitHub agent reports itself skipped, while Jira, Confluence and Memory agents still run.</p>
+            <p className="mt-2 text-[12px] leading-relaxed text-muted">Local files stay in your browser. Without GitHub history, answers rely on code, tickets, docs and memory.</p>
           </section>
 
           {integrations && !integrations.github.connected && (
-            <p className="mt-6 text-[11px] text-muted">Your GitHub account is not linked. Link it in Settings to connect private repositories.</p>
+            <p className="mt-6 text-[12px] text-muted">Your GitHub account is not linked. Link it in Settings to connect private repositories.</p>
           )}
         </div>
       </main>

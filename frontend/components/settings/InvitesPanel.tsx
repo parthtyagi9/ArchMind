@@ -86,10 +86,10 @@ function InviteRow({ invite, onRevoked }: { invite: Invite; onRevoked: () => voi
   return (
     <div className="rounded-lg border border-line bg-panel-2 p-3 text-xs">
       <div className="flex flex-wrap items-center gap-2">
-        <code className="select-all rounded bg-bg px-2 py-1 font-mono text-[12px] text-brand">{invite.code}</code>
+        <code className="select-all rounded bg-bg px-2 py-1 font-mono text-[13px] text-brand">{invite.code}</code>
         <Badge tone="brand">{invite.role}</Badge>
         {invite.team && <Badge>team {invite.team}</Badge>}
-        <span className="text-[11px] text-muted">expires {fmtDate(invite.expires_at)} · used {invite.uses}×{creator ? ` · by ${creator}` : ""}</span>
+        <span className="text-[12px] text-muted">expires {fmtDate(invite.expires_at)} · used {invite.uses}×{creator ? ` · by ${creator}` : ""}</span>
         <div className="ml-auto flex gap-1.5">
           <Button size="sm" variant="outline" onClick={() => void copy()}>{copied ? <Check className="h-3 w-3 text-ok" /> : <Copy className="h-3 w-3" />}{copied ? "Copied" : "Copy code"}</Button>
           <Button size="sm" variant="ghost" disabled={busy} aria-label="Revoke invite" title="Revoke invite" onClick={() => void revoke()}>{busy ? <Spinner className="h-3 w-3" /> : <Trash2 className="h-3.5 w-3.5" />}</Button>

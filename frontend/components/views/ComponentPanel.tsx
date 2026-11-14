@@ -37,8 +37,8 @@ export function ComponentPanel({ source, nodeId, onSelect, onClose }: { source: 
         {d && (
           <>
             <div>
-              {d.node.repo_name && <div className="font-mono text-[11px] text-brand">{d.node.repo_name}</div>}
-              <div className="font-mono text-[11px] text-muted">{d.node.path || "(repository root)"}</div>
+              {d.node.repo_name && <div className="font-mono text-[12px] text-brand">{d.node.repo_name}</div>}
+              <div className="font-mono text-[12px] text-muted">{d.node.path || "(repository root)"}</div>
               <div className="mt-2 flex flex-wrap gap-1.5">
                 <Badge tone="brand">{d.node.kind}</Badge>
                 <Badge>{d.node.file_count} files</Badge>
@@ -53,7 +53,7 @@ export function ComponentPanel({ source, nodeId, onSelect, onClose }: { source: 
                 <div className="space-y-1.5">
                   {d.memories.map((m) => (
                     <button key={m.version_id} onClick={() => openMemory(m.memory_id)} className="block w-full rounded-lg border border-line bg-panel-2 p-2.5 text-left hover:border-brand">
-                      <div className="flex items-start gap-2"><span className="min-w-0 flex-1 text-[13px] font-medium">{m.title}</span><span className="font-mono text-[10px] text-muted">v{m.version}</span></div>
+                      <div className="flex items-start gap-2"><span className="min-w-0 flex-1 text-[13px] font-medium">{m.title}</span><span className="font-mono text-[11px] text-muted">v{m.version}</span></div>
                       <p className="mt-0.5 line-clamp-2 text-muted">{m.content}</p>
                       <div className="mt-1.5 flex flex-wrap gap-1"><StatusBadge status={m.status} /><Badge>{TYPE_LABEL[m.memory_type]}</Badge><Badge tone={AUTHORITY_LABEL[m.authority].tone}>{AUTHORITY_LABEL[m.authority].label}</Badge></div>
                     </button>
@@ -79,7 +79,7 @@ export function ComponentPanel({ source, nodeId, onSelect, onClose }: { source: 
               <Label>Files ({d.node.files.length})</Label>
               <div className="space-y-0.5">
                 {(allFiles ? d.node.files : d.node.files.slice(0, FILE_PREVIEW)).map((f) => (
-                  <button key={f} onClick={() => openFile(fileTab(f))} title={f} className="flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left font-mono text-[11px] text-muted hover:bg-line/40 hover:text-fg">
+                  <button key={f} onClick={() => openFile(fileTab(f))} title={f} className="flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left font-mono text-[12px] text-muted hover:bg-line/40 hover:text-fg">
                     <FileCode className="h-3 w-3 shrink-0 text-info/80" /><span className="truncate">{f}</span>
                   </button>
                 ))}
@@ -116,17 +116,17 @@ function LinkRow({ l, onSelect }: { l: ComponentLink; onSelect: (id: string) => 
           <button onClick={() => setOpen(!open)} aria-expanded={open} aria-label="Show evidence" className="text-muted hover:text-fg">{open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}</button>
         ) : <span className="w-3" />}
         <button onClick={() => onSelect(l.id)} className="flex min-w-0 flex-1 items-center gap-1.5 rounded px-1 py-1 text-left hover:bg-line/40">
-          {kind !== "imports" && <span className="shrink-0 rounded px-1 text-[9.5px] font-medium" style={{ color: EDGE_STYLE[kind].color, background: `${EDGE_STYLE[kind].color}1a` }}>{EDGE_STYLE[kind].label}</span>}
+          {kind !== "imports" && <span className="shrink-0 rounded px-1 text-[10.5px] font-medium" style={{ color: EDGE_STYLE[kind].color, background: `${EDGE_STYLE[kind].color}1a` }}>{EDGE_STYLE[kind].label}</span>}
           <span className="min-w-0 flex-1 truncate">{l.cross_repo && l.repo_name ? <><span className="text-muted">{l.repo_name} · </span>{l.label}</> : l.label}</span>
-          <span className="font-mono text-[10px] text-muted" title={`number of ${unit}s`}>×{l.weight}</span>
+          <span className="font-mono text-[11px] text-muted" title={`number of ${unit}s`}>×{l.weight}</span>
         </button>
       </div>
       {open && (
-        <div className="mb-1 ml-4 space-y-1 rounded-md border border-line bg-panel-2 p-2 text-[11px]">
+        <div className="mb-1 ml-4 space-y-1 rounded-md border border-line bg-panel-2 p-2 text-[12px]">
           {(l.endpoints ?? []).length > 0 && (
-            <div className="flex flex-wrap gap-1">{l.endpoints!.map((e) => <span key={`${e.method} ${e.path}`} className="rounded bg-line/50 px-1.5 py-0.5 font-mono text-[10.5px]">{e.method} {e.path}</span>)}</div>
+            <div className="flex flex-wrap gap-1">{l.endpoints!.map((e) => <span key={`${e.method} ${e.path}`} className="rounded bg-line/50 px-1.5 py-0.5 font-mono text-[11.5px]">{e.method} {e.path}</span>)}</div>
           )}
-          {(l.packages ?? []).length > 0 && <div className="font-mono text-[10.5px]">{l.packages!.join(", ")}</div>}
+          {(l.packages ?? []).length > 0 && <div className="font-mono text-[11.5px]">{l.packages!.join(", ")}</div>}
           {(l.evidence ?? []).slice(0, 8).map((ev, i) => <EvidenceLine key={i} ev={ev} />)}
           {(l.evidence?.length ?? 0) > 8 && <div className="text-muted">… {l.evidence!.length - 8} more</div>}
         </div>
@@ -137,9 +137,9 @@ function LinkRow({ l, onSelect }: { l: ComponentLink; onSelect: (id: string) => 
 
 function EvidenceLine({ ev }: { ev: EdgeEvidence }) {
   const at = (repo: string | undefined, file?: string, line?: number) => `${repo ? `${repo}:` : ""}${file ?? "?"}${line ? `:${line}` : ""}`;
-  if (ev.package) return <div className="font-mono text-[10.5px] text-muted">{at(ev.import_repo, ev.import_file)} → {at(ev.manifest_repo, ev.manifest_file)}</div>;
+  if (ev.package) return <div className="font-mono text-[11.5px] text-muted">{at(ev.import_repo, ev.import_file)} → {at(ev.manifest_repo, ev.manifest_file)}</div>;
   return (
-    <div className="font-mono text-[10.5px] text-muted" title={ev.score !== undefined && ev.score < 1 ? "matched with a path prefix difference" : "exact path match"}>
+    <div className="font-mono text-[11.5px] text-muted" title={ev.score !== undefined && ev.score < 1 ? "matched with a path prefix difference" : "exact path match"}>
       <span className="text-fg">{ev.call}</span> at {at(ev.call_repo, ev.call_file, ev.call_line)}<br />→ <span className="text-fg">{ev.route}</span> at {at(ev.route_repo, ev.route_file, ev.route_line)}
       {ev.score !== undefined && ev.score < 1 && <span className="ml-1 text-warn">(prefix match)</span>}
     </div>
@@ -155,10 +155,10 @@ function Endpoints({ title, items, openFile }: { title: string; items: (ApiRoute
       <Label>{title} ({items.length})</Label>
       <div className="space-y-0.5">
         {(all ? items : items.slice(0, ENDPOINT_PREVIEW)).map((r, i) => (
-          <button key={i} onClick={() => openFile(r.file)} title={`${r.file}:${r.line}`} className="flex w-full items-center gap-2 rounded px-1.5 py-1 text-left font-mono text-[11px] hover:bg-line/40">
-            <span className="w-12 shrink-0 text-[10px] text-info">{r.method}</span>
+          <button key={i} onClick={() => openFile(r.file)} title={`${r.file}:${r.line}`} className="flex w-full items-center gap-2 rounded px-1.5 py-1 text-left font-mono text-[12px] hover:bg-line/40">
+            <span className="w-12 shrink-0 text-[11px] text-info">{r.method}</span>
             <span className="min-w-0 flex-1 truncate">{"host" in r && r.host ? <span className="text-muted">{r.host}</span> : null}{r.path}</span>
-            <span className="shrink-0 text-[10px] text-muted">{r.file.split("/").pop()}:{r.line}</span>
+            <span className="shrink-0 text-[11px] text-muted">{r.file.split("/").pop()}:{r.line}</span>
           </button>
         ))}
       </div>

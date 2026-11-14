@@ -99,7 +99,7 @@ export function MemoryView() {
                     <div className="truncate text-sm font-medium">{m.title}</div>
                     <p className="mt-0.5 line-clamp-2 text-xs text-muted">{m.content}</p>
                   </div>
-                  <span className="shrink-0 font-mono text-[11px] text-muted">v{m.version}</span>
+                  <span className="shrink-0 font-mono text-[12px] text-muted">v{m.version}</span>
                 </div>
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   <StatusBadge status={m.status} /><Badge>{TYPE_LABEL[m.memory_type]}</Badge><Badge>{scopeLabel(m)}</Badge>

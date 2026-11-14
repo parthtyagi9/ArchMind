@@ -114,7 +114,7 @@ export function NewMemoryForm({ onCreated, onCancel }: { onCreated: (m: Memory) 
                     const on = components.includes(n.id);
                     return (
                       <button type="button" key={n.id} aria-pressed={on} onClick={() => setComponents((c) => (on ? c.filter((x) => x !== n.id) : [...c, n.id]))}
-                        className={cn("rounded-md border px-2 py-0.5 text-[11px]", on ? "border-brand bg-brand-soft text-brand" : "border-line text-muted hover:text-fg")}>{scope === "group" && n.repo_name ? `${n.repo_name.split("/").pop()} · ${n.label}` : n.label}</button>
+                        className={cn("rounded-md border px-2 py-0.5 text-[12px]", on ? "border-brand bg-brand-soft text-brand" : "border-line text-muted hover:text-fg")}>{scope === "group" && n.repo_name ? `${n.repo_name.split("/").pop()} · ${n.label}` : n.label}</button>
                     );
                   })}
                 </div>

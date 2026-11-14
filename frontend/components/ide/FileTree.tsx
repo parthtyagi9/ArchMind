@@ -43,7 +43,7 @@ function Row({ node, depth, open, toggle }: { node: TreeNode; depth: number; ope
       <button
         onClick={() => (isDir ? toggle(node.path) : openFile(node.path))}
         aria-expanded={isDir ? isOpen : undefined}
-        className={cn("flex w-full items-center gap-1.5 py-[3px] pr-2 text-left text-[12.5px] hover:bg-line/40", active ? "bg-brand-soft text-fg" : "text-muted")}
+        className={cn("flex w-full items-center gap-1.5 py-[3px] pr-2 text-left text-[13.5px] hover:bg-line/40", active ? "bg-brand-soft text-fg" : "text-muted")}
         style={{ paddingLeft: 8 + depth * 12 }}
       >
         {isDir ? (isOpen ? <ChevronDown className="h-3.5 w-3.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" />) : <span className="w-3.5 shrink-0" />}
@@ -71,16 +71,16 @@ function TreeBody({ paths }: { paths: string[] }) {
     <div className="py-1">
       <div className="relative px-2 pb-1.5">
         <Search className="absolute left-4 top-2 h-3 w-3 text-muted" />
-        <input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Filter files" aria-label="Filter files" className={cn(inputCls, "h-7 pl-7 text-[11px]")} />
+        <input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Filter files" aria-label="Filter files" className={cn(inputCls, "h-7 pl-7 text-[12px]")} />
       </div>
       {f ? (
         <>
           {matches.slice(0, MAX_FILTER_RESULTS).map((p) => (
             <button key={p} onClick={() => openFile(p)} title={p}
-              className={cn("block w-full truncate px-3 py-[3px] text-left font-mono text-[11.5px] hover:bg-line/40", activeTabId === `file:${p}` ? "bg-brand-soft text-fg" : "text-muted")}>{p}</button>
+              className={cn("block w-full truncate px-3 py-[3px] text-left font-mono text-[12.5px] hover:bg-line/40", activeTabId === `file:${p}` ? "bg-brand-soft text-fg" : "text-muted")}>{p}</button>
           ))}
           {matches.length === 0 && <p className="px-3 py-2 text-xs text-muted">No files match “{filter}”.</p>}
-          {matches.length > MAX_FILTER_RESULTS && <p className="px-3 py-1 text-[11px] text-muted">Showing the first {MAX_FILTER_RESULTS} of {matches.length}. Type more to narrow down.</p>}
+          {matches.length > MAX_FILTER_RESULTS && <p className="px-3 py-1 text-[12px] text-muted">Showing the first {MAX_FILTER_RESULTS} of {matches.length}. Type more to narrow down.</p>}
         </>
       ) : (
         tree.map((n) => <Row key={n.path} node={n} depth={0} open={open} toggle={toggle} />)
@@ -107,7 +107,7 @@ function GroupTree({ group, members }: { group: Group; members: Repo[] }) {
   const indexing = members.filter((r) => r.status === "indexing");
   return (
     <>
-      {indexing.length > 0 && <p className="px-3 pb-1 text-[11px] text-info">{indexing.map((r) => r.full_name).join(", ")} still indexing; its files appear when it finishes.</p>}
+      {indexing.length > 0 && <p className="px-3 pb-1 text-[12px] text-info">{indexing.map((r) => r.full_name).join(", ")} still indexing; its files appear when it finishes.</p>}
       {tree.loading && !tree.data ? <div className="space-y-1.5 px-3 py-2">{[0, 1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-4" />)}</div>
         : tree.error != null ? <div className="p-2"><ErrorBanner error={tree.error} onRetry={tree.reload} /></div>
         : members.length === 0 ? <div className="space-y-2 px-3 py-2 text-xs text-muted"><p>This group has no repositories yet.</p><ManageGroupButton className="-ml-2" /></div>

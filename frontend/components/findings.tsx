@@ -15,7 +15,7 @@ export const FINDING_LABEL: Record<FindingKind, string> = {
 export function FindingRow({ f, onOpen, focused }: { f: Finding; onOpen?: () => void; focused?: boolean }) {
   const Icon = FINDING_ICON[f.kind];
   return (
-    <div data-finding-ref={f.ref} className={cn("rounded-md px-1.5 py-1 text-[11px]", focused && "bg-warn/10 ring-1 ring-warn/40")}>
+    <div data-finding-ref={f.ref} className={cn("rounded-md px-1.5 py-1 text-[12px]", focused && "bg-warn/10 ring-1 ring-warn/40")}>
       <div className="flex items-start gap-1.5">
         <Icon className={cn("mt-0.5 h-3 w-3 shrink-0", f.kind === "memory" ? "text-ok" : "text-brand")} aria-label={FINDING_LABEL[f.kind]} />
         {onOpen

@@ -23,8 +23,8 @@ function QuestionBubble({ question, selection }: { question: string; selection: 
     <div className="ml-6 rounded-lg rounded-tr-sm bg-brand-soft px-3 py-2 text-xs">
       {selection && (
         <div className="mb-1.5 rounded-md border border-line bg-bg/60 p-1.5">
-          <div className="font-mono text-[10px] text-brand">{selection.path}:{selection.start_line}{selection.end_line !== selection.start_line ? `–${selection.end_line}` : ""}</div>
-          <pre className="mt-0.5 max-h-14 overflow-hidden font-mono text-[10.5px] text-muted">{selection.text.slice(0, 200)}</pre>
+          <div className="font-mono text-[11px] text-brand">{selection.path}:{selection.start_line}{selection.end_line !== selection.start_line ? `–${selection.end_line}` : ""}</div>
+          <pre className="mt-0.5 max-h-14 overflow-hidden font-mono text-[11.5px] text-muted">{selection.text.slice(0, 200)}</pre>
         </div>
       )}
       {question}
@@ -38,7 +38,7 @@ export function SubmitState({ item, onRetry }: { item: ThreadItem; onRetry: () =
       <QuestionBubble question={item.question} selection={item.selection} />
       {item.submitError
         ? <ErrorBanner error={item.submitError} onRetry={onRetry} />
-        : <div className="flex items-center gap-2 text-[11px] text-muted" role="status"><Spinner className="h-3.5 w-3.5" />Starting agents…</div>}
+        : <div className="flex items-center gap-2 text-[12px] text-muted" role="status"><Spinner className="h-3.5 w-3.5" />Starting agents…</div>}
     </div>
   );
 }
@@ -83,12 +83,12 @@ export function ThreadEntry({ item }: { item: ThreadItem & { runId: string } }) 
   return (
     <div className="space-y-2.5">
       <QuestionBubble question={question} selection={selection} />
-      {!run && poll.error == null && <div className="flex items-center gap-2 text-[11px] text-muted" role="status"><Spinner className="h-3.5 w-3.5" />Loading run…</div>}
+      {!run && poll.error == null && <div className="flex items-center gap-2 text-[12px] text-muted" role="status"><Spinner className="h-3.5 w-3.5" />Loading run…</div>}
       {poll.error != null && <ErrorBanner error={poll.error} onRetry={poll.retry} />}
       {run && (
         <>
           <RunProgress run={run} focus={focus} />
-          {run.status === "running" && <div className="flex items-center gap-2 text-[11px] text-muted" role="status"><Loader2 className="h-3 w-3 animate-spin text-brand" />Working… progress updates live.</div>}
+          {run.status === "running" && <div className="flex items-center gap-2 text-[12px] text-muted" role="status"><Loader2 className="h-3 w-3 animate-spin text-brand" />Working… progress updates live.</div>}
           {run.status === "failed" && (
             <div role="alert" className="flex gap-2 rounded-lg border border-bad/30 bg-bad-soft p-2.5 text-xs text-bad">
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />

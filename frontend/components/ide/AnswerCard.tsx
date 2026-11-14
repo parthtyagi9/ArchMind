@@ -16,7 +16,7 @@ export function VerdictBadge({ verdict, size = "md" }: { verdict: Verdict; size?
   const m = VERDICT_META[verdict];
   const Icon = m.icon;
   return (
-    <span className={cn("inline-flex items-center gap-1.5 rounded-lg border font-semibold", size === "md" ? "px-3 py-1.5 text-xs" : "px-2 py-0.5 text-[11px]", m.cls)}>
+    <span className={cn("inline-flex items-center gap-1.5 rounded-lg border font-semibold", size === "md" ? "px-3 py-1.5 text-xs" : "px-2 py-0.5 text-[12px]", m.cls)}>
       <Icon className={size === "md" ? "h-4 w-4" : "h-3.5 w-3.5"} />{m.label}
     </span>
   );
@@ -30,13 +30,13 @@ export function GuidanceBlock({ guidance }: { guidance: Answer["guidance"] }) {
   return (
     <div className="space-y-2.5">
       <div className={cn("rounded-md border p-2.5 text-xs", guidance.verdict === "proceed" ? "border-line bg-panel-2" : VERDICT_META[guidance.verdict].cls)}>
-        <div className="mb-0.5 text-[10px] font-medium uppercase tracking-wider opacity-80">Recommendation</div>
+        <div className="mb-0.5 text-[11px] font-medium opacity-80">Recommendation</div>
         <div className="text-fg"><RichText text={guidance.recommendation} /></div>
       </div>
 
       {guidance.constraints.length > 0 && (
         <div>
-          <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-muted">Constraints from governed memory</div>
+          <div className="mb-1 text-[11px] font-medium text-muted">Constraints from governed memory</div>
           <ul className="space-y-1.5 text-xs">
             {guidance.constraints.map((c, i) => (
               <li key={`${c.memory_ref}-${i}`} className="flex gap-1.5">
@@ -52,7 +52,7 @@ export function GuidanceBlock({ guidance }: { guidance: Answer["guidance"] }) {
 
       {guidance.risks.length > 0 && (
         <div>
-          <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-muted">Risks</div>
+          <div className="mb-1 text-[11px] font-medium text-muted">Risks</div>
           <ul className="list-disc space-y-0.5 pl-4 text-xs text-muted">{guidance.risks.map((r, i) => <li key={i}><RichText text={r} /></li>)}</ul>
         </div>
       )}
@@ -74,13 +74,13 @@ export function AnswerCard({ answer, memoryEnabled, memoriesUsed, runId, canShow
   const { showInArchitecture } = useApp();
   const g = answer.guidance;
   return (
-    <div className="rounded-lg border border-line bg-panel p-3 text-[12.5px] leading-relaxed">
+    <div className="rounded-lg border border-line bg-panel p-3 text-[13.5px] leading-relaxed">
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <VerdictBadge verdict={g.verdict} />
         <Badge tone={CONF_TONE[answer.confidence]}>confidence: {answer.confidence}</Badge>
-        <span className="ml-auto font-mono text-[10px] text-muted">{runId}</span>
+        <span className="ml-auto font-mono text-[11px] text-muted">{runId}</span>
       </div>
-      <p className="mb-2 text-[11px] text-muted">{VERDICT_META[g.verdict].blurb}</p>
+      <p className="mb-2 text-[12px] text-muted">{VERDICT_META[g.verdict].blurb}</p>
       <div className="mb-1.5 text-sm font-semibold"><RichText text={answer.headline} /></div>
       {answer.explanation.map((p, i) => <p key={i} className="mb-2 text-fg/90"><RichText text={p} /></p>)}
 
@@ -92,7 +92,7 @@ export function AnswerCard({ answer, memoryEnabled, memoriesUsed, runId, canShow
 
       {answer.evidence_refs.length > 0 && (
         <div className="mt-2.5">
-          <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-muted">Evidence</div>
+          <div className="mb-1 text-[11px] font-medium text-muted">Evidence</div>
           <div className="flex flex-wrap gap-1">
             {answer.evidence_refs.map((e) => <button key={e} onClick={() => onEvidence(e)} title="Show this finding"><Badge className="font-mono hover:bg-line">{e}</Badge></button>)}
           </div>
@@ -101,7 +101,7 @@ export function AnswerCard({ answer, memoryEnabled, memoriesUsed, runId, canShow
 
       {answer.affected_components.length > 0 && (
         <div className="mt-2.5">
-          <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-muted">Affected components</div>
+          <div className="mb-1 text-[11px] font-medium text-muted">Affected components</div>
           <div className="flex flex-wrap gap-1">{answer.affected_components.map((c) => <Badge key={c} tone="brand" className="font-mono">{c}</Badge>)}</div>
         </div>
       )}

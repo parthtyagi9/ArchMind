@@ -40,7 +40,7 @@ export function Ide() {
           {workspace?.kind === "local" && <Badge tone="info">local files · GitHub provenance unavailable</Badge>}
           {workspace?.kind === "group" && <Badge tone="brand">repo group · {groupMembers.length} repositor{groupMembers.length === 1 ? "y" : "ies"}</Badge>}
           {workspace?.kind === "group" && <ManageGroupButton />}
-          <button onClick={closeWorkspace} className="rounded-md px-2 py-0.5 text-[11px] text-muted hover:bg-line/50 hover:text-fg">Close workspace</button>
+          <button onClick={closeWorkspace} className="rounded-md px-2 py-0.5 text-[12px] text-muted hover:bg-line/50 hover:text-fg">Close workspace</button>
         </div>
       </div>
 
@@ -63,7 +63,7 @@ export function Ide() {
           <div role="tablist" className="flex h-9 shrink-0 items-end overflow-x-auto border-b border-line bg-panel/60">
             {tabs.map((t) => (
               <div key={t.id} role="tab" aria-selected={t.id === activeTabId} tabIndex={0} onClick={() => setActiveTabId(t.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setActiveTabId(t.id); }}
-                className={cn("group flex h-full cursor-pointer items-center gap-2 border-r border-line px-3 text-xs", t.id === activeTabId ? "bg-bg text-fg shadow-[inset_0_2px_0_#7c8cff]" : "text-muted hover:text-fg")}>
+                className={cn("group flex h-full cursor-pointer items-center gap-2 border-r border-line px-3 text-xs", t.id === activeTabId ? "bg-bg text-fg shadow-[inset_0_2px_0_#4fb3ff]" : "text-muted hover:text-fg")}>
                 <TabIcon tab={t} /><span className="whitespace-nowrap">{tabTitle(t)}</span>
                 <button onClick={(e) => { e.stopPropagation(); closeTab(t.id); }} aria-label={`Close ${tabTitle(t)}`} className="rounded p-0.5 opacity-0 hover:bg-line/60 focus:opacity-100 group-hover:opacity-100"><X className="h-3 w-3" /></button>
               </div>

@@ -61,7 +61,7 @@ export function GroupModal({ group, onClose }: { group?: Group; onClose: () => v
 
         <div>
           <div className="mb-1.5 flex items-center gap-2">
-            <span className="text-[11px] font-medium text-muted">Repositories ({selected.length} selected)</span>
+            <span className="text-[12px] font-medium text-muted">Repositories ({selected.length} selected)</span>
             <Button type="button" size="sm" variant="ghost" className="ml-auto" disabled={!can("connect_repo")} onClick={() => setConnecting(true)}><Plus className="h-3 w-3" />Connect another repository</Button>
           </div>
           {repos.length === 0 ? (
@@ -81,7 +81,7 @@ export function GroupModal({ group, onClose }: { group?: Group; onClose: () => v
               })}
             </div>
           )}
-          {selected.length === 1 && <p className="mt-1.5 text-[11px] text-muted">Add at least one more repository to see connections between them.</p>}
+          {selected.length === 1 && <p className="mt-1.5 text-[12px] text-muted">Add at least one more repository to see connections between them.</p>}
         </div>
 
         {error && <ErrorBanner error={error} />}

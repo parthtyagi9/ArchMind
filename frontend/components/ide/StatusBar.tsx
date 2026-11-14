@@ -8,7 +8,7 @@ export function StatusBar() {
   const files = workspace?.kind === "local" ? Object.keys(workspace.files).length : isGroup ? groupMembers.reduce((s, r) => s + r.file_count, 0) : repo?.file_count;
   const indexing = isGroup ? groupMembers.filter((r) => r.status === "indexing").length : 0;
   return (
-    <div className="flex h-6 shrink-0 items-center gap-4 border-t border-line bg-panel px-3 text-[11px] text-muted">
+    <div className="flex h-6 shrink-0 items-center gap-4 border-t border-line bg-panel px-3 text-[12px] text-muted">
       <span className="flex items-center gap-1"><GitBranch className="h-3 w-3" />{workspace?.kind === "local" ? "local files" : isGroup ? `${groupMembers.length} repositories` : repo?.branch ?? "—"}</span>
       {files !== undefined && <span>{files} files</span>}
       {indexing > 0 && <span className="text-info">{indexing} indexing</span>}

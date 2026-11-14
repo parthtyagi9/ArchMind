@@ -20,7 +20,7 @@ export function CodeEditor({ path }: { path: string }) {
     if (!hit) return <div className="p-4 text-xs text-muted">This file belongs to a repository that is no longer part of the group.</div>;
     return (
       <div className="flex h-full flex-col">
-        <div className="shrink-0 border-b border-line bg-panel/60 px-3 py-1 font-mono text-[11px] text-muted">{hit.repo.full_name} · {hit.repo.branch}</div>
+        <div className="shrink-0 border-b border-line bg-panel/60 px-3 py-1 font-mono text-[12px] text-muted">{hit.repo.full_name} · {hit.repo.branch}</div>
         <div className="min-h-0 flex-1"><RepoFileView repo={hit.repo} path={hit.path} viewPath={path} /></div>
       </div>
     );
@@ -28,7 +28,7 @@ export function CodeEditor({ path }: { path: string }) {
   if (workspace?.kind === "local") {
     return (
       <div className="flex h-full flex-col">
-        <div className="shrink-0 border-b border-line bg-info-soft px-3 py-1 text-[11px] text-info">Local file: GitHub provenance unavailable. The GitHub agent will be skipped; Jira, Confluence and Memory still run.</div>
+        <div className="shrink-0 border-b border-line bg-info-soft px-3 py-1 text-[12px] text-info">Local file: GitHub provenance unavailable. The GitHub agent will be skipped; Jira, Confluence and Memory still run.</div>
         <div className="min-h-0 flex-1"><CodeView path={path} content={workspace.files[path] ?? ""} /></div>
       </div>
     );
@@ -86,7 +86,7 @@ function CodeView({ path, content }: { path: string; content: string }) {
 
   return (
     <div className="relative h-full">
-      <div ref={scroller} className="h-full overflow-auto bg-bg/40 py-2 font-mono text-[12.5px] leading-[1.65]" onMouseDown={() => setPop(null)} onMouseUp={onMouseUp} onScroll={() => setPop(null)}>
+      <div ref={scroller} className="h-full overflow-auto bg-bg/40 py-2 font-mono text-[13.5px] leading-[1.65]" onMouseDown={() => setPop(null)} onMouseUp={onMouseUp} onScroll={() => setPop(null)}>
         <div className="min-w-max">
           {lines.slice(0, shown).map((l, i) => {
             const n = i + 1;

@@ -85,7 +85,7 @@ function PendingCard({ m, canApprove, onResolved, onOpen }: { m: Memory; canAppr
         <div>
           <Label>Would apply to</Label>
           {m.components.length ? <div className="flex flex-wrap gap-1">{m.components.map((c) => <Badge key={c} tone="brand" className="font-mono">{c}</Badge>)}</div> : <span className="text-muted">No specific component</span>}
-          <div className="mt-2 text-[11px] text-muted">Proposed by {m.created_by.name} · {fmtDate(m.created_at)}</div>
+          <div className="mt-2 text-[12px] text-muted">Proposed by {m.created_by.name} · {fmtDate(m.created_at)}</div>
         </div>
       </div>
 

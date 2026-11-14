@@ -43,7 +43,7 @@ function Body({ m, onChanged, onPurged }: { m: Memory; onChanged: () => void; on
       <Card className="p-4">
         <div className="flex items-start gap-2">
           <h2 className="min-w-0 flex-1 text-sm font-semibold">{m.title}</h2>
-          <span className="font-mono text-[11px] text-muted">{m.memory_id}@v{m.version}</span>
+          <span className="font-mono text-[12px] text-muted">{m.memory_id}@v{m.version}</span>
         </div>
         <div className="mt-2 flex flex-wrap gap-1.5">
           <StatusBadge status={m.status} />
@@ -94,7 +94,7 @@ function Body({ m, onChanged, onPurged }: { m: Memory; onChanged: () => void; on
             </Button>
           ))}
         </div>
-        {actions.some((a) => a.blocked) && <p className="mt-2 text-[11px] text-muted">Greyed-out actions are unavailable for this memory or your role; hover for the reason. The backend enforces the same rules.</p>}
+        {actions.some((a) => a.blocked) && <p className="mt-2 text-[12px] text-muted">Greyed-out actions are unavailable for this memory or your role; hover for the reason. The backend enforces the same rules.</p>}
         {mode && <ActionForm key={mode} m={m} mode={mode} onDone={done} onPurged={onPurged} onCancel={() => setMode(null)} />}
       </Card>
 
@@ -106,9 +106,9 @@ function Body({ m, onChanged, onPurged }: { m: Memory; onChanged: () => void; on
               <li key={h.version_id} className="rounded-lg border border-line bg-panel-2 p-2.5 text-xs">
                 <div className="flex flex-wrap items-center gap-1.5">
                   <span className="font-mono font-medium">v{h.version}</span><StatusBadge status={h.status} /><Badge tone={AUTHORITY_LABEL[h.authority].tone}>{AUTHORITY_LABEL[h.authority].label}</Badge>
-                  <span className="ml-auto text-[11px] text-muted">{h.created_by.name} · {fmtDate(h.created_at)}</span>
+                  <span className="ml-auto text-[12px] text-muted">{h.created_by.name} · {fmtDate(h.created_at)}</span>
                 </div>
-                {h.approved_by && <div className="mt-1 text-[11px] text-muted">approved by {h.approved_by.name}</div>}
+                {h.approved_by && <div className="mt-1 text-[12px] text-muted">approved by {h.approved_by.name}</div>}
                 <details className="mt-1.5">
                   <summary className="cursor-pointer text-muted hover:text-fg">{h.title}</summary>
                   <p className="mt-1 whitespace-pre-wrap text-fg/90">{h.content}</p>
@@ -122,7 +122,7 @@ function Body({ m, onChanged, onPurged }: { m: Memory; onChanged: () => void; on
   );
 }
 
-const Meta = ({ k, v }: { k: string; v: string }) => <div><dt className="text-[10px] uppercase tracking-wider text-muted">{k}</dt><dd className="mt-0.5 break-words">{v}</dd></div>;
+const Meta = ({ k, v }: { k: string; v: string }) => <div><dt className="text-[11px] text-muted">{k}</dt><dd className="mt-0.5 break-words">{v}</dd></div>;
 
 function ActionForm({ m, mode, onDone, onPurged, onCancel }: { m: Memory; mode: Mode; onDone: () => void; onPurged: () => void; onCancel: () => void }) {
   const [title, setTitle] = useState(m.title);

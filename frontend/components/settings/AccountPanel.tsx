@@ -19,7 +19,7 @@ export function AccountPanel() {
           <span>Active organization</span><Badge tone="brand">{me.org.name}</Badge><Badge>{me.org.role}</Badge>{me.org.team && <Badge>team {me.org.team}</Badge>}
           {me.user.github_login && <Badge tone="info">GitHub: {me.user.github_login}</Badge>}
         </div>
-        <p className="text-[11px] text-muted">Name and email are set when the account is created and are read-only here.</p>
+        <p className="text-[12px] text-muted">Name and email are set when the account is created and are read-only here.</p>
         <Button variant="outline" disabled={busy} onClick={() => { setBusy(true); void signOut(); }}>{busy ? <Spinner className="h-3.5 w-3.5" /> : <LogOut className="h-3.5 w-3.5" />}Sign out</Button>
       </div>
     </Card>

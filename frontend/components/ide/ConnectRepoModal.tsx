@@ -64,7 +64,7 @@ export function ConnectRepoModal({ onClose, groupId }: { onClose: () => void; gr
                 <GithubMark className="h-3.5 w-3.5" />Link GitHub
               </a>
             ) : (
-              <p className="mt-2 text-[11px] text-warn">GitHub sign-in is not configured on this server, so only public repositories can be connected.</p>
+              <p className="mt-2 text-[12px] text-warn">GitHub sign-in is not configured on this server, so only public repositories can be connected.</p>
             )}
           </div>
         )}
@@ -86,10 +86,10 @@ export function ConnectRepoModal({ onClose, groupId }: { onClose: () => void; gr
                     className="flex w-full items-center gap-3 rounded-lg border border-line bg-panel-2 px-3 py-2 text-left enabled:hover:border-brand disabled:opacity-60">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5 font-mono text-xs">{r.full_name}{r.private && <Lock className="h-3 w-3 text-muted" />}</div>
-                      {r.description && <div className="truncate text-[11px] text-muted">{r.description}</div>}
-                      <div className="text-[10px] text-muted/80">default branch {r.default_branch} · updated {timeAgo(r.updated_at)}</div>
+                      {r.description && <div className="truncate text-[12px] text-muted">{r.description}</div>}
+                      <div className="text-[11px] text-muted/80">default branch {r.default_branch} · updated {timeAgo(r.updated_at)}</div>
                     </div>
-                    {already ? <Badge tone="ok">{group ? "in group" : "connected"}</Badge> : busy === r.full_name ? <Spinner /> : <span className="text-[11px] text-brand">{joinOnly ? "Add to group" : "Connect"}</span>}
+                    {already ? <Badge tone="ok">{group ? "in group" : "connected"}</Badge> : busy === r.full_name ? <Spinner /> : <span className="text-[12px] text-brand">{joinOnly ? "Add to group" : "Connect"}</span>}
                   </button>
                 );
               })}
@@ -98,13 +98,13 @@ export function ConnectRepoModal({ onClose, groupId }: { onClose: () => void; gr
         )}
 
         <form onSubmit={(e) => { e.preventDefault(); if (manualValid) void connect(manualName, branch.trim() || undefined); }} className="space-y-2 border-t border-line pt-3">
-          <div className="text-[11px] font-medium uppercase tracking-wider text-muted">{connected ? "Or enter owner/name" : "Public repository"}</div>
+          <div className="text-[12px] font-medium text-muted">{connected ? "Or enter owner/name" : "Public repository"}</div>
           <div className="grid grid-cols-[minmax(0,1fr)_120px] gap-2">
             <Field label="owner/name"><input className={inputCls} value={manual} onChange={(e) => setManual(e.target.value)} placeholder="vercel/next.js" spellCheck={false} /></Field>
             <Field label="Branch"><input className={inputCls} value={branch} onChange={(e) => setBranch(e.target.value)} placeholder="default" spellCheck={false} /></Field>
           </div>
-          {manual.trim() && !manualValid && <p className="text-[11px] text-warn">Use the form owner/name, for example vercel/next.js.</p>}
-          {taken(manualName) && <p className="text-[11px] text-warn">{group ? "This repository is already in the group." : "This repository is already connected."}</p>}
+          {manual.trim() && !manualValid && <p className="text-[12px] text-warn">Use the form owner/name, for example vercel/next.js.</p>}
+          {taken(manualName) && <p className="text-[12px] text-warn">{group ? "This repository is already in the group." : "This repository is already connected."}</p>}
           <Button type="submit" disabled={!manualValid || busy !== null || taken(manualName)}>
             {busy === manualName && <Spinner className="h-3.5 w-3.5 text-[#0a0b10]" />}{group && existing.has(manualName.toLowerCase()) ? "Add to group" : "Connect repository"}
           </Button>

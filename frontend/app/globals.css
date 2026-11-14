@@ -1,37 +1,54 @@
 @import "tailwindcss";
 
 @theme inline {
-  --color-bg: #0a0b10;
-  --color-panel: #11131b;
-  --color-panel-2: #171a24;
-  --color-line: #252938;
-  --color-muted: #8a90a8;
-  --color-fg: #e8eaf2;
-  --color-brand: #7c8cff;
-  --color-brand-soft: #7c8cff1f;
-  --color-ok: #34d399;
-  --color-ok-soft: #34d3991a;
-  --color-warn: #fbbf24;
-  --color-warn-soft: #fbbf241a;
-  --color-bad: #f87171;
-  --color-bad-soft: #f871711a;
-  --color-info: #38bdf8;
-  --color-info-soft: #38bdf81a;
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Inter, sans-serif;
-  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+  /* "Blueprint": drafting-ink surfaces, blueprint-cyan for action, amber for review */
+  --color-bg: #0c1422;
+  --color-panel: #101b2d;
+  --color-panel-2: #152238;
+  --color-line: #22324c;
+  --color-muted: #94a4bd;
+  --color-fg: #e8eef7;
+  --color-brand: #4fb3ff;
+  --color-brand-soft: #4fb3ff1f;
+  --color-ok: #36c98f;
+  --color-ok-soft: #36c98f1c;
+  --color-warn: #f3b63f;
+  --color-warn-soft: #f3b63f1c;
+  --color-bad: #ef6b6b;
+  --color-bad-soft: #ef6b6b1c;
+  --color-info: #9db7ff;
+  --color-info-soft: #9db7ff17;
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
 }
 
 html, body { height: 100%; }
 
 body {
-  background: radial-gradient(1100px 520px at 15% -10%, #7c8cff14, transparent 60%), var(--color-bg);
+  /* faint blueprint grid: the one decorative element */
+  background-color: var(--color-bg);
+  background-image:
+    linear-gradient(#4fb3ff0a 1px, transparent 1px),
+    linear-gradient(90deg, #4fb3ff0a 1px, transparent 1px);
+  background-size: 28px 28px;
   color: var(--color-fg);
   font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  font-feature-settings: "ss02";
 }
 
-::selection { background: #7c8cff55; }
+code, pre, kbd, .font-mono { font-family: var(--font-mono); }
 
-* { scrollbar-width: thin; scrollbar-color: #2b3045 transparent; }
+:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; border-radius: 4px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
+
+::selection { background: #4fb3ff4d; }
+
+* { scrollbar-width: thin; scrollbar-color: #2a3c5a transparent; }
 
 @keyframes pulse-ring {
   0% { opacity: 0.9; transform: scale(1); }
