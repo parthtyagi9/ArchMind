@@ -1,9 +1,10 @@
 "use client";
+import { PageGuide } from "@/components/views/GovernanceGuide";
 import { ArrowRight, GitCompareArrows, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useApp } from "@/components/AppState";
 import { GuidanceBlock, VerdictBadge } from "@/components/ide/AnswerCard";
-import { Badge, Button, Card, CardHeader, ErrorBanner, Field, InfoBanner, Label, PageHeader, Spinner, cn, inputCls, textareaCls } from "@/components/ui";
+import { Badge, Button, Card, CardHeader, ErrorBanner, Field, Label, PageHeader, Spinner, cn, inputCls, textareaCls } from "@/components/ui";
 import { api, errorMessage } from "@/lib/api";
 import { selLabel, timeAgo } from "@/lib/format";
 import { useAsync, usePolling } from "@/lib/hooks";
@@ -52,7 +53,7 @@ export function CompareView() {
   return (
     <>
       <PageHeader title="Memory Impact" sub="Prove whether governed memory changed the agent's decision: the same evidence run and the same model, with memory removed from one arm." />
-      <InfoBanner tone="info" className="mb-4">Both arms reuse one evidence-gathering run (same repository state, tickets and docs) and the same reasoning model. The only difference is whether your governed memories are in the prompt. If the decision does not change, this view says so.</InfoBanner>
+      <PageGuide page="compare" />
 
       <Card className="mb-5">
         <form onSubmit={(e) => void start(e)} className="space-y-3 p-4">

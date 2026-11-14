@@ -107,7 +107,7 @@ export function useAppRaw(): AppState {
 }
 
 const PAGE_TITLES: Record<PageId, string> = {
-  memory: "Memory Inspector", approvals: "Approval Center", history: "Decision History", runs: "Agent Run Inspector", compare: "Memory Impact", settings: "Settings",
+  governance: "Governance overview", memory: "Memory Inspector", approvals: "Approval Center", history: "Decision History", runs: "Agent Run Inspector", compare: "Memory Impact", settings: "Settings",
 };
 export const pageTitle = (p: PageId) => PAGE_TITLES[p];
 

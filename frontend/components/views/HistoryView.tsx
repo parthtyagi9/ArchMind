@@ -1,4 +1,5 @@
 "use client";
+import { PageGuide } from "@/components/views/GovernanceGuide";
 import { Ban, Bot, Brain, Check, Clock, Eye, FilePlus, GitBranch, Lock, Pencil, ScrollText, Trash2, UserCog, X } from "lucide-react";
 import { useState } from "react";
 import { useApp } from "@/components/AppState";
@@ -52,6 +53,7 @@ export function HistoryView() {
   return (
     <>
       <PageHeader title="Decision History" sub="Append-only audit trail of memory approvals, corrections, revocations, access decisions and agent runs. Events never contain memory text, so purged memories leave no copy." />
+      <PageGuide page="history" />
       <div className="mb-3 flex flex-wrap gap-1">{FILTERS.map((f) => <Chip key={f.id} active={type === f.id} onClick={() => setType(f.id)}>{f.label}</Chip>)}</div>
       {events.loading && !events.data && <LoadingBlock label="Loading audit trail…" />}
       {events.error != null && <ErrorBanner error={events.error} onRetry={events.reload} />}

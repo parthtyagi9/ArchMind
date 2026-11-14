@@ -11,6 +11,7 @@ import { SettingsView } from "@/components/settings/SettingsView";
 import { Badge, cn } from "@/components/ui";
 import { ApprovalsView } from "@/components/views/ApprovalsView";
 import { CompareView } from "@/components/views/CompareView";
+import { GovernanceOverview } from "@/components/views/GovernanceGuide";
 import { ExplorerView } from "@/components/views/ExplorerView";
 import { HistoryView } from "@/components/views/HistoryView";
 import { MemoryView } from "@/components/views/MemoryView";
@@ -24,7 +25,7 @@ const ACTIVITY: { id: SidebarPanel; icon: typeof Files; label: string }[] = [
 ];
 
 export function Ide() {
-  const { workspace, repo, group, groupMembers, closeWorkspace, tabs, activeTabId, setActiveTabId, closeTab, sidebar, setSidebar, openArch, pendingCount, can } = useApp();
+  const { workspace, repo, group, groupMembers, closeWorkspace, tabs, activeTabId, setActiveTabId, closeTab, sidebar, setSidebar, openArch, openPage, pendingCount, can } = useApp();
   const active = tabs.find((t) => t.id === activeTabId) ?? null;
   const name = workspace?.kind === "local" ? workspace.name : workspace?.kind === "group" ? group?.name ?? "" : repo?.full_name ?? "";
   const chatKey = workspace?.kind === "repo" ? workspace.repoId : workspace?.kind === "group" ? `group:${workspace.groupId}` : `local:${name}`;
@@ -46,7 +47,7 @@ export function Ide() {
       <div className="flex min-h-0 flex-1">
         <nav aria-label="Activity bar" className="flex w-12 shrink-0 flex-col items-center gap-1 border-r border-line bg-panel/80 py-2">
           {ACTIVITY.map(({ id, icon: Icon, label }) => (
-            <button key={id} title={label} aria-label={label} aria-pressed={sidebar === id} onClick={() => { setSidebar(id); if (id === "arch" && indexed) openArch(); }}
+            <button key={id} title={label} aria-label={label} aria-pressed={sidebar === id} onClick={() => { setSidebar(id); if (id === "arch" && indexed) openArch(); if (id === "gov" && sidebar !== "gov") openPage("governance"); }}
               className={cn("relative grid h-10 w-10 place-items-center rounded-lg", sidebar === id ? "text-fg" : "text-muted hover:text-fg")}>
               {sidebar === id && <span className="absolute left-[-6px] h-5 w-[2px] rounded bg-brand" />}
               <Icon className="h-5 w-5" />
@@ -94,6 +95,7 @@ function TabIcon({ tab }: { tab: Tab }) {
 
 function Page({ page }: { page: PageId }) {
   switch (page) {
+    case "governance": return <GovernanceOverview />;
     case "memory": return <MemoryView />;
     case "approvals": return <ApprovalsView />;
     case "history": return <HistoryView />;

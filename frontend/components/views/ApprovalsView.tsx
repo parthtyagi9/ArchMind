@@ -1,4 +1,5 @@
 "use client";
+import { PageGuide } from "@/components/views/GovernanceGuide";
 import { Check, Pencil, X } from "lucide-react";
 import { useState } from "react";
 import { useApp } from "@/components/AppState";
@@ -19,6 +20,7 @@ export function ApprovalsView() {
   return (
     <>
       <PageHeader title="Approval Center" sub="Proposed knowledge stays pending until a human approves it. Only active memories can influence agent decisions." />
+      <PageGuide page="approvals" />
       {!canApprove && <InfoBanner className="mb-4">You can review proposals but not approve or reject them: that needs the approve_memory permission (admin or owner). The backend enforces this rule.</InfoBanner>}
       {list.loading && !list.data && <LoadingBlock label="Loading pending memories…" />}
       {list.error != null && <ErrorBanner error={list.error} onRetry={list.reload} />}

@@ -1,5 +1,5 @@
 "use client";
-import { AlertTriangle, Loader2, Lightbulb } from "lucide-react";
+import { AlertTriangle, Loader2, Lightbulb, GitCompareArrows } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useApp } from "@/components/AppState";
 import { AnswerCard } from "@/components/ide/AnswerCard";
@@ -44,7 +44,7 @@ export function SubmitState({ item, onRetry }: { item: ThreadItem; onRetry: () =
 }
 
 export function ThreadEntry({ item }: { item: ThreadItem & { runId: string } }) {
-  const { openPage, setHighlight, repo, group, can } = useApp();
+  const { openPage, openCompare, setHighlight, repo, group, can } = useApp();
   const poll = usePolling<Run>({
     id: item.runId, initial: item.run, fetch: () => api.run(item.runId),
     keepGoing: (r) => r.status === "running", intervalMs: 600,
@@ -103,6 +103,10 @@ export function ThreadEntry({ item }: { item: ThreadItem & { runId: string } }) 
               onEvidence={(ref) => setFocus((f) => ({ ref, nonce: (f?.nonce ?? 0) + 1 }))}
               footer={
                 <>
+                  <Button size="sm" variant="outline" title="Run this question again with and without memory, same evidence and model"
+                    onClick={() => openCompare({ question: run.question, selection: run.selection, repoId: run.repo_id, groupId: run.group_id })}>
+                    <GitCompareArrows className="h-3.5 w-3.5" />Compare with/without memory
+                  </Button>
                   {proposedId ? (
                     <Button size="sm" variant="outline" onClick={() => openPage("approvals")}><Lightbulb className="h-3.5 w-3.5" />Proposed · open Approvals</Button>
                   ) : (

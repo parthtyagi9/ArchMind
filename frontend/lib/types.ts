@@ -269,7 +269,7 @@ export interface SearchResponse { results: SearchResult[]; excluded: number }
 
 // ---------- UI-only types ----------
 
-export type PageId = "memory" | "approvals" | "history" | "runs" | "compare" | "settings";
+export type PageId = "governance" | "memory" | "approvals" | "history" | "runs" | "compare" | "settings";
 
 export type Tab =
   | { id: string; kind: "file"; path: string }

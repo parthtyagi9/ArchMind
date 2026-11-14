@@ -31,6 +31,9 @@ export function FindingRow({ f, onOpen, focused }: { f: Finding; onOpen?: () => 
 
 export function FindingChip({ f, onClick }: { f: Finding; onClick?: () => void }) {
   const Icon = FINDING_ICON[f.kind];
-  const inner = <Badge tone={f.kind === "memory" ? "ok" : "brand"} className="font-mono"><Icon className="h-3 w-3" />{f.ref}</Badge>;
-  return onClick ? <button onClick={onClick} title={f.title}>{inner}</button> : <span title={f.title}>{inner}</span>;
+  const isMem = f.kind === "memory";
+  const label = isMem && f.title ? (f.title.length > 38 ? `${f.title.slice(0, 37)}…` : f.title) : f.ref;
+  const tip = isMem ? `${f.title} (${f.ref})` : f.title;
+  const inner = <Badge tone={isMem ? "ok" : "brand"} className={isMem ? "max-w-full" : "font-mono"}><Icon className="h-3 w-3 shrink-0" /><span className="truncate">{label}</span></Badge>;
+  return onClick ? <button onClick={onClick} title={tip} className="max-w-full">{inner}</button> : <span title={tip} className="max-w-full">{inner}</span>;
 }

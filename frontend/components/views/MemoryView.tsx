@@ -1,4 +1,5 @@
 "use client";
+import { PageGuide } from "@/components/views/GovernanceGuide";
 import { Plus, Search, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useApp } from "@/components/AppState";
@@ -54,6 +55,7 @@ export function MemoryView() {
     <>
       <PageHeader title="Memory Inspector" sub="Every organizational memory, its authority, provenance and version history. Only memories inside your scope are listed."
         right={<Button size="sm" disabled={!can("propose_memory")} title={can("propose_memory") ? undefined : "Requires the propose_memory permission"} onClick={() => { setCreating(true); setSelectedId(null); }}><Plus className="h-3.5 w-3.5" />New memory</Button>} />
+      <PageGuide page="memory" />
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_460px]">
         <div className="min-w-0">
           <form onSubmit={runSearch} className="mb-3 flex flex-wrap items-center gap-2">

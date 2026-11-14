@@ -1,5 +1,6 @@
 "use client";
-import { Brain, FolderOpen } from "lucide-react";
+import { Compass, FolderOpen } from "lucide-react";
+import { GOV_NAV } from "@/components/views/GovernanceGuide";
 import { useMemo, useRef } from "react";
 import { useApp, type SidebarPanel } from "@/components/AppState";
 import { FileTree } from "@/components/ide/FileTree";
@@ -9,14 +10,6 @@ import { readFolder } from "@/lib/localFiles";
 import { useGroupGraph } from "@/lib/groupData";
 import { useRepoGraph } from "@/lib/repoData";
 import type { PageId } from "@/lib/types";
-
-const GOV_PAGES: { page: PageId; label: string }[] = [
-  { page: "memory", label: "Memory Inspector" },
-  { page: "approvals", label: "Approval Center" },
-  { page: "history", label: "Decision History" },
-  { page: "runs", label: "Agent Run Inspector" },
-  { page: "compare", label: "Memory Impact" },
-];
 
 const TITLES: Record<SidebarPanel, string> = { files: "Explorer", arch: "Architecture", gov: "Governance" };
 
@@ -56,15 +49,25 @@ export function Sidebar() {
 }
 
 function GovSide() {
-  const { openPage, pendingCount, can } = useApp();
+  const { openPage, pendingCount, can, tabs, activeTabId } = useApp();
+  const active = tabs.find((t) => t.id === activeTabId);
+  const isActive = (p: string) => active?.kind === "page" && active.page === p;
+  const item = (page: PageId, label: string, hint: string, Icon: typeof Compass, badge?: React.ReactNode) => (
+    <button key={page} onClick={() => openPage(page)} title={hint}
+      className={cn("flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left hover:bg-line/40", isActive(page) ? "bg-brand-soft text-fg" : "text-muted hover:text-fg")}>
+      <Icon className={cn("mt-0.5 h-3.5 w-3.5 shrink-0", isActive(page) ? "text-brand" : "")} />
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center gap-2 text-[12.5px]">{label}{badge}</span>
+        <span className="block truncate text-[10.5px] text-muted/80">{hint}</span>
+      </span>
+    </button>
+  );
   return (
-    <div className="px-2 py-1">
-      {GOV_PAGES.map((g) => (
-        <button key={g.page} onClick={() => openPage(g.page)} className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12.5px] text-muted hover:bg-line/40 hover:text-fg">
-          <Brain className="h-3.5 w-3.5" />{g.label}
-          {g.page === "approvals" && can("approve_memory") && pendingCount > 0 && <Badge tone="warn" className="ml-auto">{pendingCount}</Badge>}
-        </button>
-      ))}
+    <div className="space-y-0.5 px-2 py-1">
+      {item("governance", "Overview", "How memory governance works", Compass)}
+      <div className="px-2 pb-1 pt-2 text-[10px] uppercase tracking-wider text-muted/70">Tools</div>
+      {GOV_NAV.map((g) => item(g.page, g.label, g.question, g.icon,
+        g.page === "approvals" && can("approve_memory") && pendingCount > 0 ? <Badge tone="warn" className="ml-auto">{pendingCount}</Badge> : undefined))}
     </div>
   );
 }

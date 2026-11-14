@@ -1,4 +1,5 @@
 "use client";
+import { PageGuide } from "@/components/views/GovernanceGuide";
 import { GitCompareArrows } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useApp } from "@/components/AppState";
@@ -29,6 +30,7 @@ export function RunsView() {
     <>
       <PageHeader title="Agent Run Inspector" sub="Every run records what each agent did, what memory was retrieved or withheld, and the structured decision that came out."
         right={(repo || group) && <div className="flex gap-1"><Chip active={scope === "all"} onClick={() => setScope("all")}>All runs</Chip><Chip active={scope === "repo"} onClick={() => setScope("repo")}>{repo?.full_name ?? group?.name}</Chip></div>} />
+      <PageGuide page="runs" />
       {list.loading && !list.data && <LoadingBlock label="Loading runs…" />}
       {list.error != null && <ErrorBanner error={list.error} onRetry={list.reload} />}
       {extra.error != null && <ErrorBanner error={extra.error} onRetry={extra.reload} className="mb-3" />}

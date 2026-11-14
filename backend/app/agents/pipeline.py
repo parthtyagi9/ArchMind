@@ -322,7 +322,8 @@ def _run_agent(ctx: Ctx, aid: str, fn: Callable[[Ctx], list[dict]]) -> None:
         kinds: dict[str, int] = {}
         for f in found:
             kinds[f["kind"]] = kinds.get(f["kind"], 0) + 1
-        summary = ", ".join(f"{n} {k.replace('_', ' ')}{'s' if n != 1 else ''}" for k, n in kinds.items()) or "nothing relevant found"
+        plural = {"memory": "memories"}
+        summary = ", ".join(f"{n} {plural.get(k, k.replace('_', ' ') + 's') if n != 1 else k.replace('_', ' ')}" for k, n in kinds.items()) or "nothing relevant found"
         rec.agent(aid, status="done", summary=summary, finished_at=iso(utcnow()))
     except (GitHubError, AtlassianError) as e:
         log.warning("%s failed: %s", aid, e)

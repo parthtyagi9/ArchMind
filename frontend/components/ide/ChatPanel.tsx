@@ -1,5 +1,5 @@
 "use client";
-import { Brain, Send, Sparkles, X } from "lucide-react";
+import { Brain, Code2, MessageSquareText, Send, ShieldCheck, Sparkles, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useApp } from "@/components/AppState";
 import { SubmitState, ThreadEntry, type ThreadItem } from "@/components/ide/ThreadEntry";
@@ -15,7 +15,7 @@ const nextKey = () => `q${Date.now()}_${++keySeq}`;
 const fromRun = (r: Run): ThreadItem => ({ key: r.id, question: r.question, selection: r.selection, runId: r.id, run: r, submitError: null });
 
 export function ChatPanel() {
-  const { workspace, repo, group, groupMembers, memoryOn, setMemoryOn, pendingSelection, setPendingSelection, askRequest, can, me } = useApp();
+  const { workspace, repo, group, groupMembers, memoryOn, setMemoryOn, pendingSelection, setPendingSelection, askRequest, can, me, openPage } = useApp();
   const repoId = workspace?.kind === "repo" ? workspace.repoId : null;
   const groupId = workspace?.kind === "group" ? workspace.groupId : null;
   const isLocal = workspace?.kind === "local";
@@ -92,6 +92,11 @@ export function ChatPanel() {
           <span className={memoryOn ? "text-ok" : "text-muted"}>Governed memory {memoryOn ? "on" : "off"}</span>
         </button>
       </div>
+      <div className={cn("border-b border-line px-3 py-1.5 text-[11px] leading-snug", memoryOn ? "text-muted" : "bg-warn-soft/40 text-warn")}>
+        {memoryOn
+          ? <>Answers use <span className="text-fg">approved</span> organizational memories you are allowed to see. <button className="text-brand hover:underline" onClick={() => openPage("governance")}>How?</button></>
+          : <>Memory is off: answers ignore every organizational decision and rule. Use this to see the agent's unconstrained answer.</>}
+      </div>
 
       {isLocal && <InfoBanner tone="info" className="m-3 mb-0">Local files: GitHub provenance unavailable. The GitHub agent will report itself skipped; Jira, Confluence and Memory still run.</InfoBanner>}
       {group && groupMembers.some((r) => r.status !== "ready") && <InfoBanner className="m-3 mb-0">Some repositories in this group are not indexed yet. Answers search only the indexed ones.</InfoBanner>}
@@ -102,11 +107,28 @@ export function ChatPanel() {
         {history.error != null && <ErrorBanner error={history.error} onRetry={history.reload} />}
 
         {items.length === 0 && !history.loading && (
-          <div className="space-y-3 pt-6 text-center text-xs text-muted">
-            <div className="mx-auto grid h-10 w-10 place-items-center rounded-xl bg-brand-soft"><Sparkles className="h-5 w-5 text-brand" /></div>
-            <p className="text-sm text-fg">Ask why anything exists</p>
-            <p className="leading-relaxed">Select code in the editor and choose <span className="text-brand">Why does this exist?</span>. ArchMind deploys GitHub, Jira, Confluence and Memory sub-agents, then answers with cited evidence and a guidance verdict.</p>
-            <p className="leading-relaxed">You can also type a question about the architecture below.</p>
+          <div className="space-y-4 pt-4 text-xs text-muted">
+            <div className="text-center">
+              <div className="mx-auto grid h-10 w-10 place-items-center rounded-xl bg-brand-soft"><Sparkles className="h-5 w-5 text-brand" /></div>
+              <p className="mt-2 text-sm text-fg">Ask why anything exists</p>
+              <p className="mt-1 leading-relaxed">Answers are built from code, history, tickets, docs and your organization's approved memory, with every source cited.</p>
+            </div>
+            <ol className="space-y-2 rounded-lg border border-line bg-panel-2 p-3">
+              <HowStep n={1} icon={Code2}>Select code in the editor and click <span className="text-brand">Why does this exist?</span>, or type a question below.</HowStep>
+              <HowStep n={2} icon={MessageSquareText}>Four sub-agents search GitHub, Jira, Confluence and governed memory in parallel; you can watch each one.</HowStep>
+              <HowStep n={3} icon={ShieldCheck}>Read the verdict and its citations. Compare with/without memory, or propose the answer as a memory for review.</HowStep>
+            </ol>
+            {canAsk && (
+              <div>
+                <div className="mb-1.5 text-[10px] font-medium uppercase tracking-wider">Try asking</div>
+                <div className="space-y-1.5">
+                  {STARTERS.map((q) => (
+                    <button key={q} onClick={() => submit(q, null)}
+                      className="block w-full rounded-lg border border-line bg-panel-2 px-3 py-2 text-left text-[12px] text-fg/90 transition-colors hover:border-brand hover:text-fg">{q}</button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -133,5 +155,20 @@ export function ChatPanel() {
         <div className="mt-1.5 text-[10px] text-muted">as {me.user.name} · {me.org.name}{me.org.team ? ` · team ${me.org.team}` : ""} · memory {memoryOn ? "on" : "off"}</div>
       </div>
     </div>
+  );
+}
+
+const STARTERS = [
+  "What are the main components of this codebase and how do they depend on each other?",
+  "Which approved decisions or rules should I know before changing this repository?",
+  "Is it safe to change the default configuration values in this project? What could break?",
+];
+
+function HowStep({ n, icon: Icon, children }: { n: number; icon: typeof Code2; children: React.ReactNode }) {
+  return (
+    <li className="flex gap-2.5 leading-relaxed">
+      <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-brand-soft text-[10px] font-semibold text-brand">{n}</span>
+      <span><Icon className="mr-1 inline h-3.5 w-3.5 text-brand" />{children}</span>
+    </li>
   );
 }
