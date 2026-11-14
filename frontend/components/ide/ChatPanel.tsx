@@ -17,18 +17,19 @@ const AGENT_META: Record<AgentId, { icon: typeof GitBranch; tone: string }> = {
 };
 
 export function ChatPanel() {
-  const { thread, ask, user, memoryOn, setMemoryOn, pendingSelection, setPendingSelection, workspace } = useApp();
+  const { thread, ask, user, memoryOn, setMemoryOn, pendingSelection, setPendingSelection, workspace, busy, live } = useApp();
   const [text, setText] = useState("");
   const [note, setNote] = useState<string | null>(null);
   const bottom = useRef<HTMLDivElement>(null);
 
   useEffect(() => { bottom.current?.scrollIntoView({ behavior: "smooth", block: "end" }); }, [thread.length]);
 
-  const submit = (q?: string) => {
+  const submit = async (q?: string) => {
     const question = (q ?? text).trim() || (pendingSelection ? "Why does this exist?" : "");
-    if (!question) return;
-    setNote(ask(question, pendingSelection));
+    if (!question || busy) return;
     setText("");
+    setNote(null);
+    setNote(await ask(question, pendingSelection));
   };
 
   return (
@@ -60,7 +61,8 @@ export function ChatPanel() {
         )}
 
         {thread.map((item) => <ThreadEntry key={item.id} item={item} />)}
-        <div ref={bottom} />
+        {busy && <div className="flex items-center gap-2 px-1 py-2 text-[12px] text-muted"><span className="h-2 w-2 animate-pulse rounded-full bg-brand" />ArchMind is retrieving governed memory and reasoning…</div>}
+          <div ref={bottom} />
       </div>
 
       <div className="border-t border-line p-3">
@@ -79,7 +81,7 @@ export function ChatPanel() {
             className="h-9 min-w-0 flex-1 rounded-lg border border-line bg-panel-2 px-3 text-xs outline-none placeholder:text-muted/70 focus:border-brand" />
           <Button type="submit" size="sm" className="h-9"><Send className="h-3.5 w-3.5" /></Button>
         </form>
-        <div className="mt-1.5 text-[10px] text-muted">as {user.name} · tenant {user.tenant} · answers use synthetic demo evidence</div>
+        <div className="mt-1.5 text-[10px] text-muted">as {user.name} · tenant {user.tenant} · {live ? "live: Atlas memory + Gemini reasoning · code/Jira/Confluence evidence simulated" : "offline preview · synthetic demo evidence"}</div>
       </div>
     </div>
   );
@@ -192,11 +194,12 @@ function AgentCard({ agent, elapsed }: { agent: AgentSpec; elapsed: number }) {
 }
 
 function FinalCard({ item }: { item: ThreadItem }) {
-  const { setHighlight, openPage, setFocusMemoryId, user, addMemory, log } = useApp();
+  const { setHighlight, openPage, setFocusMemoryId, user, addMemory, log, gov } = useApp();
   const f = item.final;
 
   const showGraph = () => { setHighlight(f.affected); openPage("explorer"); };
-  const propose = () => {
+  const propose = async () => {
+    if (await gov.propose(f.headline, f.advice, f.affected, item.runId)) { openPage("approvals"); return; }
     const m: Memory = {
       id: `m_prop_${Date.now()}`, title: f.headline, type: "architecture_decision", status: "pending", version: 1, content: f.advice,
       tenant: user.tenant, scope: "team", team: user.team, repo: "payments-platform", authority: "agent_observed",

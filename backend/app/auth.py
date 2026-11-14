@@ -25,6 +25,7 @@ class Principal:
     tenant_name: str
     roles: frozenset[str]  # permissions derived from `role`
     role: str = "User"
+    team: str = ""
 
     def has(self, role: str) -> bool:
         return role in self.roles
@@ -40,16 +41,18 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
     "User": {"responder"},
 }
 
-# Synthetic demo directory (no real people, no passwords).
+# Synthetic demo directory (no real people, no passwords). Mirrors the ArchMind frontend roster.
 DEMO_USERS: dict[str, dict] = {
-    "alice": {"name": "Alice Chen", "title": "SRE lead", "role": "Super Admin",
-              "tenant_id": "tenant_alpha", "tenant_name": "Alpha Payments"},
-    "maya": {"name": "Maya Singh", "title": "Platform engineer", "role": "Admin",
-             "tenant_id": "tenant_alpha", "tenant_name": "Alpha Payments"},
-    "dev": {"name": "Dev Patel", "title": "On-call engineer", "role": "User",
-            "tenant_id": "tenant_alpha", "tenant_name": "Alpha Payments"},
-    "bob": {"name": "Bob Okafor", "title": "Platform lead", "role": "Super Admin",
-            "tenant_id": "tenant_beta", "tenant_name": "Beta Logistics"},
+    "alice": {"name": "Alice Chen", "title": "Staff engineer", "role": "Super Admin", "team": "payments",
+              "tenant_id": "org_alpha", "tenant_name": "Alpha Payments"},
+    "maya": {"name": "Maya Singh", "title": "Platform engineer", "role": "Admin", "team": "payments",
+             "tenant_id": "org_alpha", "tenant_name": "Alpha Payments"},
+    "dev": {"name": "Dev Patel", "title": "Developer", "role": "User", "team": "payments",
+            "tenant_id": "org_alpha", "tenant_name": "Alpha Payments"},
+    "carol": {"name": "Carol Nguyen", "title": "Mobile developer", "role": "User", "team": "mobile",
+              "tenant_id": "org_alpha", "tenant_name": "Alpha Payments"},
+    "bob": {"name": "Bob Okafor", "title": "Platform lead", "role": "Super Admin", "team": "platform",
+            "tenant_id": "org_beta", "tenant_name": "Beta Logistics"},
 }
 for _u in DEMO_USERS.values():
     _u["roles"] = ROLE_PERMISSIONS[_u["role"]]
@@ -67,7 +70,7 @@ def issue_token(user_id: str) -> str:
 
 def principal_for(user_id: str) -> Principal:
     u = DEMO_USERS[user_id]
-    return Principal(user_id, u["name"], u["tenant_id"], u["tenant_name"], frozenset(u["roles"]), u["role"])
+    return Principal(user_id, u["name"], u["tenant_id"], u["tenant_name"], frozenset(u["roles"]), u["role"], u["team"])
 
 
 def decode_token(token: str) -> Principal:

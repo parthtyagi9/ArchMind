@@ -1,0 +1,799 @@
+{
+ "memories": [
+  {
+   "id": "m_redis",
+   "title": "Redis restrictions for payments",
+   "type": "architecture_decision",
+   "status": "approved",
+   "version": 2,
+   "content": "Redis may be used for non-transactional read caching, but must not be used as the source of truth for payment balances.",
+   "tenant": "org_alpha",
+   "scope": "team",
+   "team": "payments",
+   "repo": "payments-platform",
+   "authority": "verified",
+   "approvedBy": "Alice Chen",
+   "sources": [
+    {
+     "type": "jira",
+     "id": "PAY-142",
+     "label": "Stale balance after concurrent debit"
+    },
+    {
+     "type": "confluence",
+     "id": "CONF-2210",
+     "label": "Payments consistency model"
+    }
+   ],
+   "expiresAt": null,
+   "components": [
+    "payments-service",
+    "ledger-writer",
+    "postgres-ledger",
+    "redis-proposed"
+   ],
+   "usedInRuns": 7,
+   "history": [
+    {
+     "version": 1,
+     "content": "Do not introduce Redis to the payments service.",
+     "status": "superseded",
+     "by": "Alice Chen",
+     "at": "2026-09-02 14:10",
+     "note": "Initial decision after PAY-142 incident"
+    },
+    {
+     "version": 2,
+     "content": "Redis may be used for non-transactional read caching, but must not be used as the source of truth for payment balances.",
+     "status": "approved",
+     "by": "Alice Chen",
+     "at": "2026-10-19 09:42",
+     "note": "Corrected: blanket ban was too broad"
+    }
+   ]
+  },
+  {
+   "id": "m_authz",
+   "title": "Use centralized authorization middleware",
+   "type": "repository_convention",
+   "status": "approved",
+   "version": 1,
+   "content": "New API endpoints must use the existing centralized authorization middleware (packages/authz). Do not add per-service auth checks.",
+   "tenant": "org_alpha",
+   "scope": "org",
+   "team": "",
+   "repo": "payments-platform",
+   "authority": "verified",
+   "approvedBy": "Alice Chen",
+   "sources": [
+    {
+     "type": "github",
+     "id": "PR #482",
+     "label": "Introduce packages/authz"
+    }
+   ],
+   "expiresAt": null,
+   "components": [
+    "authz-middleware",
+    "payments-service",
+    "auth-service"
+   ],
+   "usedInRuns": 4,
+   "history": [
+    {
+     "version": 1,
+     "content": "New API endpoints must use the existing centralized authorization middleware (packages/authz). Do not add per-service auth checks.",
+     "status": "approved",
+     "by": "Alice Chen",
+     "at": "2026-08-14 16:30",
+     "note": "Imported from PR #482 review"
+    }
+   ]
+  },
+  {
+   "id": "m_audience",
+   "title": "Token audience validation incident",
+   "type": "bug_resolution",
+   "status": "approved",
+   "version": 1,
+   "content": "A past authentication issue was caused by missing token audience validation. It was fixed in the validation module (token-validator); any relocation of validation must keep audience checks.",
+   "tenant": "org_alpha",
+   "scope": "org",
+   "team": "",
+   "repo": "payments-platform",
+   "authority": "verified",
+   "approvedBy": "Alice Chen",
+   "sources": [
+    {
+     "type": "jira",
+     "id": "AUTH-311",
+     "label": "Tokens accepted without audience check"
+    },
+    {
+     "type": "github",
+     "id": "PR #377",
+     "label": "Add audience validation"
+    }
+   ],
+   "expiresAt": null,
+   "components": [
+    "auth-service",
+    "token-validator"
+   ],
+   "usedInRuns": 3,
+   "history": [
+    {
+     "version": 1,
+     "content": "A past authentication issue was caused by missing token audience validation. It was fixed in the validation module (token-validator); any relocation of validation must keep audience checks.",
+     "status": "approved",
+     "by": "Alice Chen",
+     "at": "2026-07-21 11:05",
+     "note": "Verified against PR #377"
+    }
+   ]
+  },
+  {
+   "id": "m_owner",
+   "title": "Platform team owns authentication",
+   "type": "code_ownership",
+   "status": "approved",
+   "version": 1,
+   "content": "The Platform team owns auth-service and token-validator. Changes to either require a Platform review.",
+   "tenant": "org_alpha",
+   "scope": "org",
+   "team": "",
+   "repo": "payments-platform",
+   "authority": "human",
+   "approvedBy": "Alice Chen",
+   "sources": [
+    {
+     "type": "github",
+     "id": "CODEOWNERS",
+     "label": "services/auth/ @platform"
+    }
+   ],
+   "expiresAt": null,
+   "components": [
+    "auth-service",
+    "token-validator"
+   ],
+   "usedInRuns": 2,
+   "history": [
+    {
+     "version": 1,
+     "content": "The Platform team owns auth-service and token-validator. Changes to either require a Platform review.",
+     "status": "approved",
+     "by": "Alice Chen",
+     "at": "2026-06-30 10:00",
+     "note": "From CODEOWNERS"
+    }
+   ]
+  },
+  {
+   "id": "m_gateway",
+   "title": "Gateway token validation (partial)",
+   "type": "architecture_decision",
+   "status": "approved",
+   "version": 1,
+   "content": "The gateway may verify token signatures, but audience and scope checks stay in the owning service until per-route audiences are configured at the edge.",
+   "tenant": "org_alpha",
+   "scope": "org",
+   "team": "",
+   "repo": "payments-platform",
+   "authority": "verified",
+   "approvedBy": "Alice Chen",
+   "sources": [
+    {
+     "type": "confluence",
+     "id": "CONF-1984",
+     "label": "Gateway request lifecycle"
+    },
+    {
+     "type": "jira",
+     "id": "PLAT-88",
+     "label": "Evaluate JWT validation at the edge"
+    }
+   ],
+   "expiresAt": null,
+   "components": [
+    "api-gateway",
+    "auth-service"
+   ],
+   "usedInRuns": 2,
+   "history": [
+    {
+     "version": 1,
+     "content": "The gateway may verify token signatures, but audience and scope checks stay in the owning service until per-route audiences are configured at the edge.",
+     "status": "approved",
+     "by": "Alice Chen",
+     "at": "2026-10-05 15:20",
+     "note": "Outcome of PLAT-88 design review"
+    }
+   ]
+  },
+  {
+   "id": "m_pg",
+   "title": "PostgreSQL for transactional data",
+   "type": "engineering_preference",
+   "status": "approved",
+   "version": 1,
+   "content": "Persistent transactional data uses PostgreSQL. Do not introduce additional persistence technologies without an architecture review.",
+   "tenant": "org_alpha",
+   "scope": "repo",
+   "team": "",
+   "repo": "payments-platform",
+   "authority": "human",
+   "approvedBy": "Alice Chen",
+   "sources": [
+    {
+     "type": "human",
+     "id": "alice",
+     "label": "Submitted by Alice Chen"
+    }
+   ],
+   "expiresAt": null,
+   "components": [
+    "payments-service",
+    "postgres-ledger"
+   ],
+   "usedInRuns": 5,
+   "history": [
+    {
+     "version": 1,
+     "content": "Persistent transactional data uses PostgreSQL. Do not introduce additional persistence technologies without an architecture review.",
+     "status": "approved",
+     "by": "Alice Chen",
+     "at": "2026-05-11 09:15",
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "m_pin",
+   "title": "Workaround: pin jwt library to 4.2.1",
+   "type": "workaround",
+   "status": "approved",
+   "version": 1,
+   "content": "Pin the jwt library to 4.2.1 until the 4.3 clock-skew regression is fixed upstream.",
+   "tenant": "org_alpha",
+   "scope": "org",
+   "team": "",
+   "repo": "payments-platform",
+   "authority": "human",
+   "approvedBy": "Alice Chen",
+   "sources": [
+    {
+     "type": "jira",
+     "id": "AUTH-298",
+     "label": "Pin jwt library after 4.3 regression"
+    }
+   ],
+   "expiresAt": "2026-10-31T00:00:00Z",
+   "components": [
+    "auth-service",
+    "token-validator"
+   ],
+   "usedInRuns": 1,
+   "history": [
+    {
+     "version": 1,
+     "content": "Pin the jwt library to 4.2.1 until the 4.3 clock-skew regression is fixed upstream.",
+     "status": "approved",
+     "by": "Alice Chen",
+     "at": "2026-09-12 13:00",
+     "note": "Temporary, expires 31 Oct"
+    }
+   ]
+  },
+  {
+   "id": "m_memcached",
+   "title": "Use Memcached for session caching",
+   "type": "architecture_decision",
+   "status": "revoked",
+   "version": 1,
+   "content": "Session data may be cached in Memcached.",
+   "tenant": "org_alpha",
+   "scope": "org",
+   "team": "",
+   "repo": "payments-platform",
+   "authority": "human",
+   "approvedBy": "Alice Chen",
+   "sources": [
+    {
+     "type": "confluence",
+     "id": "CONF-1511",
+     "label": "Session caching options (outdated)"
+    }
+   ],
+   "expiresAt": null,
+   "components": [
+    "auth-service"
+   ],
+   "usedInRuns": 0,
+   "revokeReason": "Memcached was removed from the stack in the Q3 migration.",
+   "history": [
+    {
+     "version": 1,
+     "content": "Session data may be cached in Memcached.",
+     "status": "revoked",
+     "by": "Alice Chen",
+     "at": "2026-10-02 12:00",
+     "note": "Revoked: component removed"
+    }
+   ]
+  },
+  {
+   "id": "m_p1",
+   "title": "Gateway should not terminate JWTs yet",
+   "type": "agent_experience",
+   "status": "pending",
+   "version": 1,
+   "content": "In an earlier investigation the agent found that moving JWT termination to the gateway would bypass the per-service audience checks added in AUTH-311.",
+   "tenant": "org_alpha",
+   "scope": "org",
+   "team": "",
+   "repo": "payments-platform",
+   "authority": "agent_observed",
+   "sources": [
+    {
+     "type": "agent_run",
+     "id": "run_0412",
+     "label": "Agent run 0412"
+    },
+    {
+     "type": "jira",
+     "id": "AUTH-311",
+     "label": "Tokens accepted without audience check"
+    }
+   ],
+   "expiresAt": null,
+   "components": [
+    "api-gateway",
+    "auth-service",
+    "token-validator"
+   ],
+   "usedInRuns": 0,
+   "history": [
+    {
+     "version": 1,
+     "content": "In an earlier investigation the agent found that moving JWT termination to the gateway would bypass the per-service audience checks added in AUTH-311.",
+     "status": "pending",
+     "by": "ArchMind agent",
+     "at": "2026-11-13 17:48",
+     "note": "Proposed from run_0412"
+    }
+   ]
+  },
+  {
+   "id": "m_p2",
+   "title": "Balance reads must hit the ledger",
+   "type": "architecture_decision",
+   "status": "pending",
+   "version": 1,
+   "content": "The balance endpoint currently reads directly from the PostgreSQL ledger; read replicas are acceptable only if replication lag is under 200 ms.",
+   "tenant": "org_alpha",
+   "scope": "team",
+   "team": "payments",
+   "repo": "payments-platform",
+   "authority": "agent_observed",
+   "sources": [
+    {
+     "type": "github",
+     "id": "balance.ts",
+     "label": "services/payments/src/balance.ts:8-96"
+    }
+   ],
+   "expiresAt": null,
+   "components": [
+    "payments-service",
+    "postgres-ledger"
+   ],
+   "usedInRuns": 0,
+   "history": [
+    {
+     "version": 1,
+     "content": "The balance endpoint currently reads directly from the PostgreSQL ledger; read replicas are acceptable only if replication lag is under 200 ms.",
+     "status": "pending",
+     "by": "ArchMind agent",
+     "at": "2026-11-14 10:55",
+     "note": "Extracted from repository scan"
+    }
+   ]
+  },
+  {
+   "id": "b_idem",
+   "title": "Carrier API calls must be idempotent",
+   "type": "repository_convention",
+   "status": "approved",
+   "version": 1,
+   "content": "All calls to carrier APIs must carry an idempotency key.",
+   "tenant": "org_beta",
+   "scope": "org",
+   "team": "",
+   "repo": "routing-engine",
+   "authority": "verified",
+   "approvedBy": "Bob Okafor",
+   "sources": [
+    {
+     "type": "github",
+     "id": "PR #91",
+     "label": "Idempotency keys"
+    }
+   ],
+   "expiresAt": null,
+   "components": [],
+   "usedInRuns": 2,
+   "history": [
+    {
+     "version": 1,
+     "content": "All calls to carrier APIs must carry an idempotency key.",
+     "status": "approved",
+     "by": "Bob Okafor",
+     "at": "2026-09-01 10:00",
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "b_redis",
+   "title": "Redis is the primary route cache",
+   "type": "architecture_decision",
+   "status": "approved",
+   "version": 1,
+   "content": "Redis is approved as the primary cache for computed routes.",
+   "tenant": "org_beta",
+   "scope": "org",
+   "team": "",
+   "repo": "routing-engine",
+   "authority": "verified",
+   "approvedBy": "Bob Okafor",
+   "sources": [
+    {
+     "type": "confluence",
+     "id": "CONF-77",
+     "label": "Route cache design"
+    }
+   ],
+   "expiresAt": null,
+   "components": [],
+   "usedInRuns": 1,
+   "history": [
+    {
+     "version": 1,
+     "content": "Redis is approved as the primary cache for computed routes.",
+     "status": "approved",
+     "by": "Bob Okafor",
+     "at": "2026-09-20 10:00",
+     "note": ""
+    }
+   ]
+  }
+ ],
+ "users": [
+  {
+   "id": "alice",
+   "name": "Alice Chen",
+   "title": "Staff engineer · approver",
+   "tenant": "org_alpha",
+   "tenantName": "Alpha Payments",
+   "team": "payments",
+   "canApprove": true
+  },
+  {
+   "id": "dev",
+   "name": "Dev Patel",
+   "title": "Developer",
+   "tenant": "org_alpha",
+   "tenantName": "Alpha Payments",
+   "team": "payments",
+   "canApprove": false
+  },
+  {
+   "id": "carol",
+   "name": "Carol Nguyen",
+   "title": "Mobile developer",
+   "tenant": "org_alpha",
+   "tenantName": "Alpha Payments",
+   "team": "mobile",
+   "canApprove": false
+  },
+  {
+   "id": "bob",
+   "name": "Bob Okafor",
+   "title": "Platform lead · approver",
+   "tenant": "org_beta",
+   "tenantName": "Beta Logistics",
+   "team": "platform",
+   "canApprove": true
+  }
+ ],
+ "scenarios": [
+  {
+   "id": "redis",
+   "question": "Should we introduce Redis caching into the payment service?",
+   "keywords": [
+    "redis",
+    "cache",
+    "caching",
+    "in-memory"
+   ],
+   "sources": [
+    {
+     "kind": "code",
+     "ref": "services/payments/src/balance.ts:8-96",
+     "label": "Balance lookup",
+     "snippet": "export async function getBalance(accountId: string) {\n  return db.query('SELECT balance FROM ledger_accounts WHERE id = $1', [accountId]);\n}"
+    },
+    {
+     "kind": "jira",
+     "ref": "PAY-142",
+     "label": "Stale balance after concurrent debit"
+    },
+    {
+     "kind": "confluence",
+     "ref": "CONF-2210",
+     "label": "Payments consistency model"
+    }
+   ],
+   "baselineSources": [
+    {
+     "kind": "code",
+     "ref": "services/payments/src/balance.ts:8-96",
+     "label": "Balance lookup",
+     "snippet": "export async function getBalance(accountId: string) {\n  return db.query('SELECT balance FROM ledger_accounts WHERE id = $1', [accountId]);\n}"
+    },
+    {
+     "kind": "jira",
+     "ref": "PAY-171",
+     "label": "Investigate read latency on balance endpoint"
+    }
+   ]
+  },
+  {
+   "id": "auth",
+   "question": "How does our authentication service work, and can we move token validation into the API gateway?",
+   "keywords": [
+    "auth",
+    "token",
+    "gateway",
+    "jwt",
+    "validation"
+   ],
+   "sources": [
+    {
+     "kind": "code",
+     "ref": "services/auth/src/validate.ts:1-64",
+     "label": "Token validation",
+     "snippet": "export function validate(token: string) {\n  const claims = jwt.verify(token, key, { audience: EXPECTED_AUD });\n  return claims;\n}"
+    },
+    {
+     "kind": "jira",
+     "ref": "AUTH-311",
+     "label": "Tokens accepted without audience check"
+    },
+    {
+     "kind": "jira",
+     "ref": "PLAT-88",
+     "label": "Evaluate JWT validation at the edge"
+    },
+    {
+     "kind": "confluence",
+     "ref": "Gateway request lifecycle",
+     "label": "Gateway request lifecycle"
+    }
+   ],
+   "baselineSources": [
+    {
+     "kind": "code",
+     "ref": "services/auth/src/validate.ts:1-64",
+     "label": "Token validation",
+     "snippet": "export function validate(token: string) {\n  const claims = jwt.verify(token, key);\n  return claims;\n}"
+    },
+    {
+     "kind": "confluence",
+     "ref": "Authentication architecture",
+     "label": "Authentication architecture"
+    }
+   ]
+  }
+ ],
+ "why": [
+  {
+   "id": "audience",
+   "path": "services/auth/src/validate.ts",
+   "title": "Audience check in token validation",
+   "github": [
+    {
+     "ref": "PR #377",
+     "title": "Add audience validation to token verification",
+     "detail": "Merged 2026-07-19. Adds the audience option to jwt.verify and the EXPECTED_AUD config."
+    },
+    {
+     "ref": "a41c9e2",
+     "title": "fix(auth): reject tokens issued for other services",
+     "detail": "Commit that introduced `audience: EXPECTED_AUD` (git blame, L21)."
+    },
+    {
+     "ref": "PR #402",
+     "title": "Set clockTolerance to 5s",
+     "detail": "Added during the jwt 4.3 regression workaround."
+    }
+   ],
+   "jira": [
+    {
+     "ref": "AUTH-311",
+     "title": "Tokens accepted without audience check",
+     "detail": "A token minted for notifications was accepted by payments, allowing cross-service replay. Done."
+    },
+    {
+     "ref": "AUTH-298",
+     "title": "Pin jwt library after 4.3 regression",
+     "detail": "Temporary workaround; related to the clock tolerance."
+    }
+   ],
+   "confluence": [
+    {
+     "ref": "Authentication architecture",
+     "title": "§ Token validation",
+     "detail": "Every service must verify `aud`. The gateway terminates TLS only."
+    },
+    {
+     "ref": "Token lifecycle & rotation",
+     "title": "Refresh and expiry policy"
+    }
+   ],
+   "affected": [
+    "auth-service",
+    "token-validator"
+   ],
+   "narrative": [
+    "This `audience` option exists because of AUTH-311: a token issued for another service was accepted by payments, which allowed cross-service replay. PR #377 added the check and the Authentication architecture page now requires every service to verify `aud`.",
+    "The `clockTolerance: 5` line is unrelated to security intent. It came later (PR #402) as part of the jwt 4.3 regression workaround tracked in AUTH-298."
+   ]
+  },
+  {
+   "id": "balance",
+   "path": "services/payments/src/balance.ts",
+   "title": "Balance read straight from the ledger",
+   "github": [
+    {
+     "ref": "PR #318",
+     "title": "Serve balance reads from the ledger only",
+     "detail": "Merged 2026-09-04. Removes the short-lived balance cache."
+    },
+    {
+     "ref": "9be07d1",
+     "title": "revert: remove balance cache",
+     "detail": "Reverts the caching layer (git blame, L7–L11)."
+    }
+   ],
+   "jira": [
+    {
+     "ref": "PAY-142",
+     "title": "Stale balance shown after concurrent debit",
+     "detail": "Cache returned an old balance for up to 30s after a debit. Done."
+    },
+    {
+     "ref": "PAY-171",
+     "title": "Investigate read latency on balance endpoint",
+     "detail": "Open. Latency complaints that motivate caching again."
+    }
+   ],
+   "confluence": [
+    {
+     "ref": "Payments consistency model",
+     "title": "§ Reads",
+     "detail": "Balances must be strongly consistent with the ledger."
+    },
+    {
+     "ref": "Payment service runbook",
+     "title": "§ Balance endpoint"
+    }
+   ],
+   "affected": [
+    "payments-service",
+    "postgres-ledger",
+    "redis-proposed"
+   ],
+   "narrative": [
+    "The balance is read directly from PostgreSQL because a short-lived cache produced stale balances after concurrent debits (PAY-142). PR #318 removed the cache, and the Payments consistency model requires balance reads to be strongly consistent.",
+    "PAY-171 is still open: latency on this endpoint is the pressure to add caching again."
+   ]
+  },
+  {
+   "id": "ledger",
+   "path": "services/payments/src/ledger/write.ts",
+   "title": "Serializable ledger transaction",
+   "github": [
+    {
+     "ref": "PR #301",
+     "title": "Double-entry ledger in one serializable transaction",
+     "detail": "Merged 2026-08-22."
+    }
+   ],
+   "jira": [
+    {
+     "ref": "PAY-142",
+     "title": "Stale balance shown after concurrent debit",
+     "detail": "Concurrent debits are what exposed the race."
+    }
+   ],
+   "confluence": [
+    {
+     "ref": "Payments consistency model",
+     "title": "§ Writes",
+     "detail": "Debit, credit and entry insert commit atomically."
+    }
+   ],
+   "affected": [
+    "ledger-writer",
+    "postgres-ledger"
+   ],
+   "narrative": [
+    "Both account updates and the entry insert run in one SERIALIZABLE transaction so concurrent debits cannot corrupt balances. This is the write-side counterpart of the strongly consistent reads described in the consistency model."
+   ]
+  },
+  {
+   "id": "authz",
+   "path": "packages/authz/src/middleware.ts",
+   "title": "Centralized authorization middleware",
+   "github": [
+    {
+     "ref": "PR #482",
+     "title": "Introduce packages/authz",
+     "detail": "Replaces per-service role checks. Merged 2026-08-12."
+    }
+   ],
+   "jira": [],
+   "confluence": [
+    {
+     "ref": "Authorization conventions",
+     "title": "§ Endpoints",
+     "detail": "All endpoints use authorizeRequest(action)."
+    }
+   ],
+   "affected": [
+    "authz-middleware",
+    "payments-service",
+    "auth-service"
+   ],
+   "narrative": [
+    "Authorization used to be re-implemented in each service. PR #482 centralized it so policy changes happen in one place, and the conventions page asks every new endpoint to mount `authorizeRequest`."
+   ]
+  },
+  {
+   "id": "gateway",
+   "path": "services/gateway/src/router.ts",
+   "title": "Gateway routes without validating tokens",
+   "github": [
+    {
+     "ref": "PR #212",
+     "title": "Gateway: routing and rate limiting only",
+     "detail": "Merged 2026-03-02."
+    }
+   ],
+   "jira": [
+    {
+     "ref": "PLAT-88",
+     "title": "Evaluate JWT validation at the edge",
+     "detail": "Open. Blocked on per-route audience configuration."
+    }
+   ],
+   "confluence": [
+    {
+     "ref": "Gateway request lifecycle",
+     "title": "§ Responsibilities",
+     "detail": "Gateway terminates TLS, routes and rate-limits."
+    }
+   ],
+   "affected": [
+    "api-gateway",
+    "auth-service",
+    "token-validator"
+   ],
+   "narrative": [
+    "The gateway deliberately skips token validation: it only routes and rate-limits, and each downstream service validates tokens itself (including the audience check from AUTH-311). PLAT-88 tracks evaluating edge validation, which is blocked on per-route audience configuration."
+   ]
+  }
+ ]
+}

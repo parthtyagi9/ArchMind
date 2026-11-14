@@ -8,15 +8,16 @@ import { isVisible } from "@/lib/agent";
 import { NODES } from "@/lib/mock";
 
 export function ApprovalsView() {
-  const { user, memories, updateMemory, log } = useApp();
+  const { user, memories, updateMemory, log, gov, govError } = useApp();
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
 
   const pending = memories.filter((m) => m.status === "pending" && isVisible(m, user));
 
-  const approve = (id: string, content?: string) => {
+  const approve = async (id: string, content?: string) => {
     const m = memories.find((x) => x.id === id);
     if (!m) return;
+    if (await gov.approve(id, content)) { setEditing(null); return; }
     const at = new Date().toISOString().slice(0, 16).replace("T", " ");
     const text = content ?? m.content;
     updateMemory(id, (x) => ({
@@ -27,13 +28,15 @@ export function ApprovalsView() {
     setEditing(null);
   };
 
-  const reject = (id: string) => {
+  const reject = async (id: string) => {
+    if (await gov.reject(id)) return;
     updateMemory(id, (x) => ({ ...x, status: "rejected", history: x.history.map((h) => (h.version === x.version ? { ...h, status: "rejected" as const } : h)) }));
     log({ type: "memory.rejected", actor: user.name, memoryId: id, detail: "Rejected; never eligible for retrieval" });
   };
 
   return (
     <>
+      {govError && <div className="mb-3 rounded-md border border-bad/40 bg-bad/10 px-3 py-2 text-xs text-bad">{govError}</div>}
       <PageHeader title="Approval Center" sub="Agent-proposed knowledge stays pending until a human approves it. Only approved memories can influence future agent decisions." />
       {!user.canApprove && <div className="mb-4 rounded-lg border border-warn/30 bg-warn-soft px-3 py-2 text-xs text-warn">{user.name} can review proposals but cannot approve them. The backend enforces this rule, not the UI.</div>}
       <div className="grid gap-3 lg:grid-cols-2">

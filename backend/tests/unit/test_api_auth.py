@@ -23,11 +23,11 @@ def test_forged_cookie_rejected(env):
 def test_tenant_in_body_or_query_is_ignored(env):
     seed()
     c = client_as("bob")
-    r = c.get("/api/memories", params={"tenant_id": "tenant_alpha"})
-    assert r.status_code == 200 and {m["tenant_id"] for m in r.json()} == {"tenant_beta"}
-    r = c.post("/api/incidents", json={"tenant_id": "tenant_alpha", "service": "payment-service",
+    r = c.get("/api/memories", params={"tenant_id": "org_alpha"})
+    assert r.status_code == 200 and {m["tenant_id"] for m in r.json()} == {"org_beta"}
+    r = c.post("/api/incidents", json={"tenant_id": "org_alpha", "service": "payment-service",
                                        "description": "secret access failure"})
-    assert r.json()["tenant_id"] == "tenant_beta"
+    assert r.json()["tenant_id"] == "org_beta"
     assert c.get("/api/memories/mem_alpha_secrets_iam/history").status_code == 404
 
 

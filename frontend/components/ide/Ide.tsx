@@ -13,7 +13,7 @@ import { HistoryView } from "@/components/views/HistoryView";
 import { MemoryView } from "@/components/views/MemoryView";
 import { RunsView } from "@/components/views/RunsView";
 import { readFolder } from "@/lib/localFiles";
-import { NODES, REPO, USERS } from "@/lib/mock";
+import { NODES, REPO } from "@/lib/mock";
 import type { Tab, ViewId } from "@/lib/types";
 
 const ACTIVITY: { id: SidebarPanel; icon: typeof Files; label: string }[] = [
@@ -31,7 +31,7 @@ const GOV_PAGES: { page: ViewId; label: string }[] = [
 ];
 
 export function Ide() {
-  const { workspace, closeWorkspace, tabs, activeTabId, setActiveTabId, closeTab, sidebar, setSidebar, user, setUserId, memories, memoryOn, openPage, openWorkspace } = useApp();
+  const { workspace, closeWorkspace, tabs, activeTabId, setActiveTabId, closeTab, sidebar, setSidebar, user, setUserId, memories, memoryOn, openPage, openWorkspace, users, live } = useApp();
   const [userMenu, setUserMenu] = useState(false);
   const folderRef = useRef<HTMLInputElement>(null);
   const active = tabs.find((t) => t.id === activeTabId) ?? null;
@@ -50,7 +50,7 @@ export function Ide() {
         <div className="flex gap-1.5"><span className="h-3 w-3 rounded-full bg-[#ff5f57]" /><span className="h-3 w-3 rounded-full bg-[#febc2e]" /><span className="h-3 w-3 rounded-full bg-[#28c840]" /></div>
         <div className="ml-2 flex items-center gap-1.5 text-xs"><Layers className="h-3.5 w-3.5 text-brand" /><span className="font-semibold">ArchMind</span><span className="text-muted">— {workspace?.name}</span></div>
         <div className="ml-auto flex items-center gap-2">
-          {workspace?.demo ? <Badge tone="warn">synthetic demo data · backend not connected</Badge> : <Badge tone="info">local files · integrations not connected</Badge>}
+          {live ? <Badge tone="ok">live: Atlas Vector Search · Voyage · Gemini{workspace?.demo ? " · code/Jira/Confluence simulated" : ""}</Badge> : workspace?.demo ? <Badge tone="warn">offline preview · synthetic data · backend not connected</Badge> : <Badge tone="info">local files · integrations not connected</Badge>}
           <button onClick={closeWorkspace} className="rounded-md px-2 py-0.5 text-[11px] text-muted hover:bg-line/50 hover:text-fg">Close workspace</button>
         </div>
       </div>
@@ -71,9 +71,9 @@ export function Ide() {
             {userMenu && (
               <div className="absolute bottom-0 left-11 z-40 w-64 rounded-lg border border-line bg-panel-2 p-1 shadow-xl">
                 <div className="px-2 py-1.5 text-[10px] uppercase tracking-wider text-muted">Switch demo identity</div>
-                {USERS.map((u) => (
+                {users.map((u) => (
                   <button key={u.id} onClick={() => { setUserId(u.id); setUserMenu(false); }} className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-line/50">
-                    <div className="min-w-0 flex-1"><div className="truncate text-xs">{u.name}</div><div className="truncate text-[11px] text-muted">{u.tenantName} · {u.team}</div></div>
+                    <div className="min-w-0 flex-1"><div className="truncate text-xs">{u.name}</div><div className="truncate text-[11px] text-muted">{u.tenantName} · {u.team} · {u.title.split(" · ")[1] ?? (u.canApprove ? "approver" : "member")}</div></div>
                     {u.id === user.id && <Check className="h-3.5 w-3.5 text-ok" />}
                   </button>
                 ))}

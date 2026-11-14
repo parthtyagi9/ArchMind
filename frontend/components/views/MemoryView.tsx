@@ -11,7 +11,7 @@ import type { Memory, MemoryStatus } from "@/lib/types";
 const FILTERS: ("all" | MemoryStatus)[] = ["all", "approved", "pending", "expired", "revoked"];
 
 export function MemoryView() {
-  const { user, memories, updateMemory, log, focusMemoryId, setFocusMemoryId } = useApp();
+  const { user, memories, updateMemory, log, focusMemoryId, setFocusMemoryId, gov, govError } = useApp();
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("all");
   const [q, setQ] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(focusMemoryId);
@@ -28,8 +28,9 @@ export function MemoryView() {
 
   const pick = (m: Memory) => { setSelectedId(m.id); setMode("view"); setReason(""); };
 
-  const saveCorrection = (m: Memory) => {
+  const saveCorrection = async (m: Memory) => {
     if (!draft.trim()) return;
+    if (await gov.correct(m.id, draft.trim(), reason)) { setMode("view"); return; }
     const at = new Date().toISOString().slice(0, 16).replace("T", " ");
     updateMemory(m.id, (x) => ({
       ...x,
@@ -43,7 +44,8 @@ export function MemoryView() {
     setMode("view");
   };
 
-  const revoke = (m: Memory) => {
+  const revoke = async (m: Memory) => {
+    if (await gov.revoke(m.id, reason)) { setMode("view"); return; }
     const at = new Date().toISOString().slice(0, 16).replace("T", " ");
     updateMemory(m.id, (x) => ({
       ...x, status: "revoked", revokeReason: reason || "Revoked by reviewer",
@@ -55,6 +57,7 @@ export function MemoryView() {
 
   return (
     <>
+      {govError && <div className="mb-3 rounded-md border border-bad/40 bg-bad/10 px-3 py-2 text-xs text-bad">{govError}</div>}
       <PageHeader title="Memory Inspector" sub="Every organizational memory, its authority, provenance and version history. Only memories inside your scope are listed." />
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_440px]">
         <div>

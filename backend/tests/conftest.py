@@ -29,6 +29,14 @@ class ScriptedLLM:
 
     def structured(self, system, prompt, schema):
         self.prompts.append(prompt)
+        if schema.__name__ == "ArchAnswer":
+            block = prompt.split("<untrusted_memories>")[1].split("</untrusted_memories>")[0].strip()
+            mems = json.loads(block) if block.startswith("[") else []
+            ids = [m["memory_id"] for m in mems] + ["m_hallucinated"]
+            redis = [m for m in mems if "redis" in m["title"].lower()]
+            return schema(headline="Answer", decision="restrict_redis_to_non_critical" if redis else "adopt_redis_cache",
+                          summary="s", current_architecture="c", recommendation="r", constraints=[m["content"] for m in redis],
+                          affected_components=["payments-service"], memory_ids_used=ids if mems else ["m_hallucinated"])
         if schema is Classification:
             return Classification(failure_category="secret_access_denied", affected_service="payment-service",
                                   summary="Service cannot read its secret.", search_query="secret access denied")

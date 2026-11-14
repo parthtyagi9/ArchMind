@@ -16,24 +16,24 @@ ALICE = principal_for("alice")
 
 def _incident():
     seed()
-    return runs.create_incident(ALICE, {**DEMO_INCIDENT, "tenant_id": "tenant_beta"})
+    return runs.create_incident(ALICE, {**DEMO_INCIDENT, "tenant_id": "org_beta"})
 
 
 def test_incident_tenant_comes_from_session_not_body(env):
     inc = _incident()
-    assert inc["tenant_id"] == "tenant_alpha"
+    assert inc["tenant_id"] == "org_alpha"
 
 
 def test_repair_changes_state_and_verifier_is_independent(env):
     seed()
-    assert not tools.verify_secret_access("tenant_alpha", "payment-service")["allowed"]
-    tools.execute("tenant_alpha", "restart_service", {"service": "payment-service"})
-    assert not tools.verify_secret_access("tenant_alpha", "payment-service")["allowed"]  # restart is not a fix
-    tools.execute("tenant_alpha", "repair_secret_access", {"service": "payment-service"})
-    s = sim.load("tenant_alpha")
+    assert not tools.verify_secret_access("org_alpha", "payment-service")["allowed"]
+    tools.execute("org_alpha", "restart_service", {"service": "payment-service"})
+    assert not tools.verify_secret_access("org_alpha", "payment-service")["allowed"]  # restart is not a fix
+    tools.execute("org_alpha", "repair_secret_access", {"service": "payment-service"})
+    s = sim.load("org_alpha")
     assert any(p.get("sid") == "RecallOpsScopedSecretRead" for p in s["iam_roles"]["payment-service-role"]["policies"])
-    assert tools.verify_secret_access("tenant_alpha", "payment-service")["allowed"]
-    assert not tools.verify_secret_access("tenant_beta", "payment-service")["allowed"]  # tenant-scoped state
+    assert tools.verify_secret_access("org_alpha", "payment-service")["allowed"]
+    assert not tools.verify_secret_access("org_beta", "payment-service")["allowed"]  # tenant-scoped state
 
 
 def test_tool_allowlist_and_arg_validation():
@@ -47,7 +47,7 @@ def test_state_change_requires_approval_then_resolves_and_writes_memory(env):
     inc = _incident()
     run = runs.start_run(ALICE, inc["_id"], memory_enabled=True)
     assert run["status"] == "awaiting_approval"
-    assert not tools.verify_secret_access("tenant_alpha", "payment-service")["allowed"]  # nothing executed yet
+    assert not tools.verify_secret_access("org_alpha", "payment-service")["allowed"]  # nothing executed yet
     assert "mem_alpha_secrets_iam" in run["retrieved_memory_ids"]
     run = runs.decide_approval(ALICE, run["_id"], True)
     assert run["status"] == "resolved"
@@ -62,7 +62,7 @@ def test_new_memory_written_only_after_verified_success(env):
     run = runs.start_run(ALICE, inc["_id"], memory_enabled=True)
     run = runs.decide_approval(ALICE, run["_id"], True)
     assert run["status"] == "resolved" and run["memory_result"]["written"]
-    m = repo.get_active("tenant_alpha", run["memory_result"]["memory_id"])
+    m = repo.get_active("org_alpha", run["memory_result"]["memory_id"])
     assert m["verification_status"] == "verified" and m["resolution_action"] == "repair_secret_access"
     assert m["source_run_id"] == run["_id"]
 
@@ -92,13 +92,13 @@ def test_unauthorized_users_cannot_approve_or_run(env):
 def test_execute_blocks_without_valid_approval(env):
     """Even if graph state is tampered to skip the approval node, execute re-validates in the DB."""
     inc = _incident()
-    state = {"run_id": "run_x", "tenant_id": "tenant_alpha", "incident": inc, "steps": [], "approval_id": "appr_fake",
+    state = {"run_id": "run_x", "tenant_id": "org_alpha", "incident": inc, "steps": [], "approval_id": "appr_fake",
              "pending_action": {"tool": "repair_secret_access", "args": {"service": "payment-service",
                                                                          "action": "secretsmanager:GetSecretValue"},
                                 "state_changing": True}}
     out = g.execute(state)
     assert out["status"] == "failed" and "BLOCKED" in out["steps"][-1]["note"]
-    assert not tools.verify_secret_access("tenant_alpha", "payment-service")["allowed"]
+    assert not tools.verify_secret_access("org_alpha", "payment-service")["allowed"]
 
 
 def test_prompt_injection_in_incident_cannot_bypass_approval(env):
@@ -119,7 +119,7 @@ def test_experiment_arms_are_isolated(env):
     assert "mem_alpha_secrets_iam" in on["retrieved_memory_ids"]
     assert off["status"] == on["status"] == "resolved"
     assert env["db"].memories.count_documents({}) == before  # no writes from either arm
-    assert not tools.verify_secret_access("tenant_alpha", "payment-service")["allowed"]  # reset after experiment
+    assert not tools.verify_secret_access("org_alpha", "payment-service")["allowed"]  # reset after experiment
     # with this scripted policy the memory arm skips diagnostics; with Gemini the delta is measured, not assumed
     assert on["metrics"]["diagnostic_calls"] < off["metrics"]["diagnostic_calls"]
 

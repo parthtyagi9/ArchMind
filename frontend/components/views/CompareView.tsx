@@ -1,18 +1,36 @@
 "use client";
 import { ArrowRight, Equal } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useApp } from "@/components/AppState";
 import { Badge, Card, CardHeader, Label, PageHeader, cn } from "@/components/ui";
 import { runAgent } from "@/lib/agent";
+import { liveCompare, type EvidenceItem, type LiveRun } from "@/lib/live";
 import { SCENARIOS } from "@/lib/mock";
 import type { Run } from "@/lib/types";
 
 export function CompareView() {
-  const { user, memories } = useApp();
+  const { user, memories, live } = useApp();
   const [sid, setSid] = useState(SCENARIOS[0].id);
   const s = SCENARIOS.find((x) => x.id === sid) ?? SCENARIOS[0];
 
-  const [off, on] = useMemo(() => [runAgent(s, false, user, memories), runAgent(s, true, user, memories)], [s, user, memories]);
+  const preview = useMemo(() => [runAgent(s, false, user, memories), runAgent(s, true, user, memories)] as const, [s, user, memories]);
+  const [liveRes, setLiveRes] = useState<Record<string, { off: LiveRun; on: LiveRun }>>({});
+  const [running, setRunning] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => { setLiveRes({}); }, [user.id]);
+  const runLive = async () => {
+    // Identical simulated evidence for both arms (union of the scenario's code/Jira/Confluence sources).
+    const seen = new Set<string>();
+    const evidence: EvidenceItem[] = [...preview[0].answer.sources, ...preview[1].answer.sources]
+      .filter((x) => !seen.has(x.ref) && seen.add(x.ref))
+      .map((x) => ({ kind: x.kind, ref: x.ref, title: x.label, detail: x.snippet ?? "" }));
+    setRunning(true); setErr(null);
+    try { const r = await liveCompare(s.question, evidence); setLiveRes((m) => ({ ...m, [s.id]: { off: r.off, on: r.on } })); }
+    catch (e) { setErr((e as Error).message); } finally { setRunning(false); }
+  };
+  const lr = live ? liveRes[s.id] : undefined;
+  const off: Run = lr?.off ?? preview[0];
+  const on: Run = lr?.on ?? preview[1];
   const changed = off.answer.decision !== on.answer.decision;
 
   const usedMemories = on.retrieved.filter((r) => r.used);
@@ -22,7 +40,19 @@ export function CompareView() {
       <PageHeader title="Memory Impact Comparison" sub="Same question, same repository state, same model and tools. Only the memory condition differs." />
       <div className="mb-4 flex flex-wrap gap-1.5">
         {SCENARIOS.map((x) => <button key={x.id} onClick={() => setSid(x.id)} className={cn("rounded-md px-3 py-1.5 text-xs", sid === x.id ? "bg-brand-soft text-brand" : "bg-panel-2 text-muted hover:text-fg")}>{x.label}</button>)}
+        {live && (
+          <button onClick={runLive} disabled={running} className="ml-auto rounded-md bg-brand px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60">
+            {running ? "Running both arms live…" : lr ? "Re-run live comparison" : "Run live comparison"}
+          </button>
+        )}
       </div>
+      {live && (
+        <p className="-mt-2 mb-4 text-[11px] text-muted">
+          {lr ? <>Live result · runs {lr.off.id} / {lr.on.id} · model {(lr.on as LiveRun).model}{(lr.off as LiveRun).model !== (lr.on as LiveRun).model ? " (warning: arms used different models due to fallback; re-run)" : ""}</>
+              : "Showing the scripted preview. Run the live comparison to execute both arms against Atlas memory and the reasoning model."}
+          {err && <span className="text-bad"> · {err}</span>}
+        </p>
+      )}
 
       <Card className={cn("mb-4 flex flex-wrap items-center gap-3 p-4", changed ? "border-ok/40" : "border-warn/40")}>
         {changed ? <ArrowRight className="h-5 w-5 text-ok" /> : <Equal className="h-5 w-5 text-warn" />}

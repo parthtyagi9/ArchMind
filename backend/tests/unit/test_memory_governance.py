@@ -17,7 +17,7 @@ def ids(results):
 
 
 def test_memory_creation_stores_embedding_and_provenance(env):
-    m = repo.create_memory(tenant_id="tenant_alpha", content="x fixed by y", service="s", error_code="E",
+    m = repo.create_memory(tenant_id="org_alpha", content="x fixed by y", service="s", error_code="E",
                            resolution_action="repair_secret_access", outcome="success", source_incident_id="inc_1")
     doc = env["db"].memories.find_one({"_id": m["_id"]})
     assert len(doc["embedding"]) == get_settings().embedding_dimensions
@@ -28,19 +28,19 @@ def test_memory_creation_stores_embedding_and_provenance(env):
 
 def test_tenant_isolation_both_directions(env):
     seed()
-    alpha = retrieval.search(QUERY, "tenant_alpha", k=10)
-    beta = retrieval.search(QUERY, "tenant_beta", k=10)
+    alpha = retrieval.search(QUERY, "org_alpha", k=10)
+    beta = retrieval.search(QUERY, "org_beta", k=10)
     assert alpha and beta
-    assert all(r["tenant_id"] == "tenant_alpha" for r in alpha)
-    assert all(r["tenant_id"] == "tenant_beta" for r in beta)
+    assert all(r["tenant_id"] == "org_alpha" for r in alpha)
+    assert all(r["tenant_id"] == "org_beta" for r in beta)
     assert "mem_beta_secrets_rotate" not in ids(alpha)
     assert "mem_alpha_secrets_iam" not in ids(beta)
 
 
 def test_governance_filter_is_inside_vector_search_stage():
-    pipe = retrieval.build_vector_pipeline([0.0] * 1024, "tenant_alpha", utcnow(), 4)
+    pipe = retrieval.build_vector_pipeline([0.0] * 1024, "org_alpha", utcnow(), 4)
     vs = pipe[0]["$vectorSearch"]
-    assert vs["filter"]["tenant_id"] == {"$eq": "tenant_alpha"}
+    assert vs["filter"]["tenant_id"] == {"$eq": "org_alpha"}
     assert vs["filter"]["status"] == {"$eq": "active"}
     assert "$gt" in vs["filter"]["expires_at"]
     with pytest.raises(ValueError):
@@ -49,7 +49,7 @@ def test_governance_filter_is_inside_vector_search_stage():
 
 def test_expired_and_invalidated_memories_excluded(env):
     seed()
-    got = ids(retrieval.search(QUERY, "tenant_alpha", k=10))
+    got = ids(retrieval.search(QUERY, "org_alpha", k=10))
     assert "mem_alpha_secrets_iam" in got
     assert "mem_alpha_expired_restart" not in got
     assert "mem_alpha_bad_rotate" not in got
@@ -59,23 +59,23 @@ def test_invalidate_takes_effect_immediately(env):
     seed()
     alice = principal_for("alice")
     governance.invalidate_memory(alice, "mem_alpha_secrets_iam", "test")
-    assert "mem_alpha_secrets_iam" not in ids(retrieval.search(QUERY, "tenant_alpha", k=10))
+    assert "mem_alpha_secrets_iam" not in ids(retrieval.search(QUERY, "org_alpha", k=10))
     assert env["db"].audit_events.find_one({"event_type": "memory.invalidated"})
 
 
 def test_correction_supersedes_and_reembeds(env):
     seed()
     alice = principal_for("alice")
-    old = repo.get_active("tenant_alpha", "mem_alpha_orders_s3")
+    old = repo.get_active("org_alpha", "mem_alpha_orders_s3")
     new = governance.correct_memory(alice, "mem_alpha_orders_s3",
                                     content="orders-service S3 AccessDenied was a bucket policy missing s3:PutObject; "
                                             "restart did not fix it.", resolution_action=None, reason="post-mortem")
-    hist = repo.history("tenant_alpha", "mem_alpha_orders_s3")
+    hist = repo.history("org_alpha", "mem_alpha_orders_s3")
     assert [h["status"] for h in hist] == ["superseded", "active"]
     assert new["version"] == 2 and new["supersedes"] == old["_id"]
     new_doc = env["db"].memories.find_one({"_id": new["_id"]})
     assert new_doc["embedding"] != old["embedding"]
-    res = retrieval.search("orders-service S3 bucket policy PutObject", "tenant_alpha", k=10)
+    res = retrieval.search("orders-service S3 bucket policy PutObject", "org_alpha", k=10)
     versions = [r["_id"] for r in res if r["memory_id"] == "mem_alpha_orders_s3"]
     assert versions == [new["_id"]]
     assert env["db"].audit_events.find_one({"event_type": "memory.corrected", "memory_id": "mem_alpha_orders_s3"})
@@ -89,7 +89,7 @@ def test_governance_requires_role_and_same_tenant(env):
     with pytest.raises(HTTPException) as e:
         governance.invalidate_memory(principal_for("bob"), "mem_alpha_secrets_iam")  # beta admin, alpha memory
     assert e.value.status_code == 404
-    assert repo.get_active("tenant_alpha", "mem_alpha_secrets_iam")
+    assert repo.get_active("org_alpha", "mem_alpha_secrets_iam")
 
 
 def test_purge_removes_content_and_embedding(env):

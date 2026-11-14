@@ -42,8 +42,8 @@ def _ids(r):
 def test_vector_search_tenant_isolation_live():
     from app.memory import retrieval
     q = "payment-service can't fetch its DB password from Secrets Manager, AccessDenied"
-    a = retrieval.search(q, "tenant_alpha", k=10)
-    b = retrieval.search(q, "tenant_beta", k=10)
+    a = retrieval.search(q, "org_alpha", k=10)
+    b = retrieval.search(q, "org_beta", k=10)
     assert "mem_alpha_secrets_iam" in _ids(a) and "mem_beta_secrets_rotate" not in _ids(a)
     assert "mem_beta_secrets_rotate" in _ids(b) and "mem_alpha_secrets_iam" not in _ids(b)
     assert "mem_alpha_expired_restart" not in _ids(a) and "mem_alpha_bad_rotate" not in _ids(a)
@@ -52,7 +52,7 @@ def test_vector_search_tenant_isolation_live():
 def test_semantic_paraphrase_retrieval_live():
     from app.memory import retrieval
     q = "checkout API throwing bad gateway errors after nodes were drained"  # no shared key tokens like 'HTTP502'
-    res = retrieval.search(q, "tenant_alpha", k=3)
+    res = retrieval.search(q, "org_alpha", k=3)
     assert res and res[0]["memory_id"] == "mem_alpha_checkout_502", [(r["memory_id"], r["score"]) for r in res]
 
 

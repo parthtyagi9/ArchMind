@@ -77,6 +77,23 @@ def main() -> None:
         print(f"creating vector index {s.vector_index_name}")
         db.memories.create_search_index(SearchIndexModel(definition=definition, name=s.vector_index_name,
                                                          type="vectorSearch"))
+    # ArchMind organizational memory index
+    arch_def = {"fields": [
+        {"type": "vector", "path": "embedding", "numDimensions": s.embedding_dimensions, "similarity": "cosine"},
+        {"type": "filter", "path": "tenant"}, {"type": "filter", "path": "status"},
+        {"type": "filter", "path": "scope"}, {"type": "filter", "path": "team"}, {"type": "filter", "path": "expires_at"},
+    ]}
+    if "arch_memories" not in db.list_collection_names():
+        db.create_collection("arch_memories")
+    db.arch_memories.create_index([("tenant", ASCENDING), ("status", ASCENDING)])
+    db.arch_runs.create_index([("tenant", ASCENDING), ("created_at", DESCENDING)])
+    arch_names = {ix["name"] for ix in db.arch_memories.list_search_indexes()}
+    if "arch_memory_vector_index" in arch_names:
+        db.arch_memories.update_search_index("arch_memory_vector_index", arch_def)
+    else:
+        db.arch_memories.create_search_index(SearchIndexModel(definition=arch_def, name="arch_memory_vector_index",
+                                                              type="vectorSearch"))
+    print("arch_memory_vector_index created/updated")
     for _ in range(60):
         ix = next((i for i in db.memories.list_search_indexes(s.vector_index_name)), None)
         if ix and ix.get("queryable"):

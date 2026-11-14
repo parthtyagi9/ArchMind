@@ -19,7 +19,7 @@ router = APIRouter(prefix="/api")
 
 def _me(p: Principal) -> dict:
     return {"user_id": p.user_id, "name": p.name, "tenant_id": p.tenant_id, "tenant_name": p.tenant_name,
-            "role": p.role, "roles": sorted(p.roles)}
+            "role": p.role, "team": p.team, "roles": sorted(p.roles)}
 
 
 # ------------------------------------------------------------------ health / session
@@ -39,8 +39,9 @@ def health() -> dict:
 
 @router.get("/session/users")
 def demo_users() -> list[dict]:
-    return [{"user_id": k, "name": v["name"], "title": v["title"], "role": v["role"],
-             "tenant_name": v["tenant_name"], "roles": sorted(v["roles"])} for k, v in DEMO_USERS.items()]
+    return [{"user_id": k, "name": v["name"], "title": v["title"], "role": v["role"], "team": v["team"],
+             "tenant_id": v["tenant_id"], "tenant_name": v["tenant_name"], "roles": sorted(v["roles"])}
+            for k, v in DEMO_USERS.items()]
 
 
 class LoginBody(BaseModel):
