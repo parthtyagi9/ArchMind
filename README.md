@@ -21,6 +21,9 @@ RecallOps diagnoses infrastructure incidents with a LangGraph agent, executes **
 
 ## Quick start (local)
 
+**Fastest:** `./setup.sh` from the repo root. It prompts for your Atlas URI and Gemini key (hidden input), writes `backend/.env`, checks both connections, creates indexes, seeds, and runs the unit and live tests.
+
+
 Prereqs: Python 3.11+, [uv](https://docs.astral.sh/uv/), Node 20+. Add your IP in Atlas → Network Access.
 
 ```bash
