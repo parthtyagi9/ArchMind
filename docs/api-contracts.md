@@ -207,7 +207,7 @@ interface PublicSource {
 ```
 
 Source storage is tenant-scoped. Repository attachments must belong to that tenant; only sources attached
-to the run's repository or the whole org are used. Disconnect affects subsequent runs; existing evidence
+to the run's repository, any member repository of its group, or the whole org are used. Disconnect affects subsequent runs; existing evidence
 history is retained. Removing a repository also disconnects its attached public sources. Public documents
 remain evidence; proposing them as persistent memory still follows the existing human-approval rules.
 Anonymous requests allow only HTTPS public addresses, validate and pin resolved IPs, revalidate redirects,

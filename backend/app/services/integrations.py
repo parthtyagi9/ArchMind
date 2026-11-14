@@ -53,10 +53,11 @@ def save_atlassian(org_id: str, user_id: str, *, base_url: str, email: str, toke
         upsert=True)
 
 
-def public_sources(org_id: str, repo_id: str | None = None, *, for_run: bool = False) -> list[dict]:
+def public_sources(org_id: str, repo_id: str | None = None, *, for_run: bool = False, repo_ids: tuple[str, ...] | None = None) -> list[dict]:
     q: dict = {"org_id": org_id, "type": "public_atlassian"}
     if for_run:
-        q["repo_id"] = {"$in": [None, repo_id]} if repo_id else None
+        ids = repo_ids if repo_ids is not None else ((repo_id,) if repo_id else ())
+        q["repo_id"] = {"$in": [None, *ids]}
     return list(get_db().integrations.find(q).sort("created_at", 1))
 
 

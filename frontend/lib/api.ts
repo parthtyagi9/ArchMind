@@ -1,6 +1,6 @@
 // Small typed fetch client for the ArchMind API. All paths are relative to /api (proxied to FastAPI).
 import type {
-  AuditEvent, Compare, ComponentDetail, Graph, GithubRepos, Integrations, AtlassianInfo, Invite, Me, Memory,
+  AuditEvent, Compare, ComponentDetail, Graph, GithubRepos, Group, GroupGraph, Integrations, AtlassianInfo, Invite, Me, Memory,
   OrgMember, Repo, RepoFile, Run, SearchResponse, Selection, SourceRef, TreeFile, Role, MemoryType, Scope, PublicSource,
 } from "@/lib/types";
 
@@ -93,6 +93,7 @@ export interface NewMemoryBody {
   scope: Scope;
   team?: string;
   repo_id?: string;
+  group_id?: string;
   components?: string[];
   source_refs?: SourceRef[];
   expires_in_days?: number | null;
@@ -110,6 +111,7 @@ export interface RunBody {
   kind: "why" | "ask";
   question: string;
   repo_id?: string;
+  group_id?: string;
   selection?: Selection;
   memory_enabled?: boolean;
 }
@@ -152,8 +154,17 @@ export const api = {
   graph: (id: string) => get<Graph>(`/repos/${enc(id)}/graph`),
   component: (id: string, nodeId: string) => get<ComponentDetail>(`/repos/${enc(id)}/components/${enc(nodeId)}`),
 
+  // repo groups
+  groups: () => get<Group[]>("/groups"),
+  createGroup: (b: { name: string; description?: string; repo_ids: string[] }) => post<Group>("/groups", b),
+  updateGroup: (id: string, b: { name?: string; description?: string; repo_ids?: string[] }) => patch<Group>(`/groups/${enc(id)}`, b),
+  deleteGroup: (id: string) => del<{ ok: boolean }>(`/groups/${enc(id)}`),
+  groupTree: (id: string) => get<{ files: TreeFile[] }>(`/groups/${enc(id)}/tree`),
+  groupGraph: (id: string) => get<GroupGraph>(`/groups/${enc(id)}/graph`),
+  groupComponent: (id: string, nodeId: string) => get<ComponentDetail>(`/groups/${enc(id)}/components/${enc(nodeId)}`),
+
   // memory
-  memories: (q: { status?: string; q?: string; repo_id?: string } = {}) => get<Memory[]>("/memories", q),
+  memories: (q: { status?: string; q?: string; repo_id?: string; group_id?: string } = {}) => get<Memory[]>("/memories", q),
   createMemory: (b: NewMemoryBody) => post<Memory>("/memories", b),
   memory: (id: string) => get<Memory>(`/memories/${enc(id)}`),
   approveMemory: (id: string, b: { content?: string; title?: string; reason?: string }) => post<Memory>(`/memories/${enc(id)}/approve`, b),
@@ -161,14 +172,14 @@ export const api = {
   correctMemory: (id: string, b: { content: string; title?: string; reason: string }) => post<Memory>(`/memories/${enc(id)}/correct`, b),
   revokeMemory: (id: string, reason: string) => post<Memory>(`/memories/${enc(id)}/revoke`, { reason }),
   purgeMemory: (id: string, reason: string) => post<{ memory_id: string; versions_purged: number }>(`/memories/${enc(id)}/purge`, { reason }),
-  searchMemories: (query: string, repo_id?: string) => post<SearchResponse>("/memories/search", repo_id ? { query, repo_id } : { query }),
+  searchMemories: (query: string, ctx: { repo_id?: string; group_id?: string } = {}) => post<SearchResponse>("/memories/search", { query, ...ctx }),
 
   // agent
   startRun: (b: RunBody) => post<{ run_id: string }>("/agent/runs", b),
   run: (id: string) => get<Run>(`/agent/runs/${enc(id)}`),
-  runs: (q: { repo_id?: string; limit?: number } = {}) => get<Run[]>("/agent/runs", q),
+  runs: (q: { repo_id?: string; group_id?: string; limit?: number } = {}) => get<Run[]>("/agent/runs", q),
   proposeMemory: (runId: string) => post<Memory>(`/agent/runs/${enc(runId)}/propose-memory`),
-  startCompare: (b: { question: string; repo_id?: string; selection?: Selection }) => post<{ compare_id: string }>("/agent/compare", b),
+  startCompare: (b: { question: string; repo_id?: string; group_id?: string; selection?: Selection }) => post<{ compare_id: string }>("/agent/compare", b),
   compare: (id: string) => get<Compare>(`/agent/compare/${enc(id)}`),
 
   // audit

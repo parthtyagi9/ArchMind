@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { useApp } from "@/components/AppState";
 import { Button, ErrorBanner, Skeleton, cn } from "@/components/ui";
 import { highlightLine, langOf, TOKEN_CLASS } from "@/lib/highlight";
+import { splitGroupPath } from "@/lib/groupData";
 import { useRepoFile } from "@/lib/repoData";
 import type { Repo, Selection } from "@/lib/types";
 
@@ -13,7 +14,17 @@ interface Pop { x: number; y: number; sel: Selection }
 const CHUNK = 3000;
 
 export function CodeEditor({ path }: { path: string }) {
-  const { workspace, repo } = useApp();
+  const { workspace, repo, groupMembers } = useApp();
+  if (workspace?.kind === "group") {
+    const hit = splitGroupPath(groupMembers, path);
+    if (!hit) return <div className="p-4 text-xs text-muted">This file belongs to a repository that is no longer part of the group.</div>;
+    return (
+      <div className="flex h-full flex-col">
+        <div className="shrink-0 border-b border-line bg-panel/60 px-3 py-1 font-mono text-[11px] text-muted">{hit.repo.full_name} · {hit.repo.branch}</div>
+        <div className="min-h-0 flex-1"><RepoFileView repo={hit.repo} path={hit.path} viewPath={path} /></div>
+      </div>
+    );
+  }
   if (workspace?.kind === "local") {
     return (
       <div className="flex h-full flex-col">
@@ -26,14 +37,15 @@ export function CodeEditor({ path }: { path: string }) {
   return <RepoFileView repo={repo} path={path} />;
 }
 
-function RepoFileView({ repo, path }: { repo: Repo; path: string }) {
+/** `viewPath` is the path the tab and selections use (it carries the repository prefix in a group workspace). */
+function RepoFileView({ repo, path, viewPath }: { repo: Repo; path: string; viewPath?: string }) {
   const file = useRepoFile(repo, path);
   if (repo.status !== "ready") return <div className="p-4 text-xs text-muted">Files are available once indexing has finished.</div>;
   if (file.error != null) return <div className="p-4"><ErrorBanner error={file.error} onRetry={file.reload} /></div>;
   if (file.loading || !file.data) {
     return <div className="space-y-2 p-4">{[70, 45, 80, 60, 35, 75, 50].map((w, i) => <Skeleton key={i} className="h-3.5" style={{ width: `${w}%` }} />)}</div>;
   }
-  return <CodeView path={path} content={file.data.content} />;
+  return <CodeView path={viewPath ?? path} content={file.data.content} />;
 }
 
 function CodeView({ path, content }: { path: string; content: string }) {
