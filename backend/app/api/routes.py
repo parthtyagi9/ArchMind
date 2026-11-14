@@ -19,14 +19,14 @@ router = APIRouter(prefix="/api")
 
 def _me(p: Principal) -> dict:
     return {"user_id": p.user_id, "name": p.name, "tenant_id": p.tenant_id, "tenant_name": p.tenant_name,
-            "roles": sorted(p.roles)}
+            "role": p.role, "roles": sorted(p.roles)}
 
 
 # ------------------------------------------------------------------ health / session
 @router.get("/health")
 def health() -> dict:
     s = get_settings()
-    out: dict[str, Any] = {"status": "ok", "demo_mode": s.demo_mode, "llm_model": s.llm_model,
+    out: dict[str, Any] = {"status": "ok", "demo_mode": s.demo_mode, "llm_provider": s.llm_provider, "llm_model": "rule-based (offline)" if s.llm_provider == "rules" else s.llm_model,
                            "embedding_provider": s.embedding_provider, "embedding_model": s.embedding_model, "embedding_dimensions": s.embedding_dimensions,
                            "gemini_configured": bool(s.gemini_api_key), "voyage_configured": bool(s.voyage_api_key)}
     try:
@@ -39,8 +39,8 @@ def health() -> dict:
 
 @router.get("/session/users")
 def demo_users() -> list[dict]:
-    return [{"user_id": k, "name": v["name"], "tenant_name": v["tenant_name"], "roles": sorted(v["roles"])}
-            for k, v in DEMO_USERS.items()]
+    return [{"user_id": k, "name": v["name"], "title": v["title"], "role": v["role"],
+             "tenant_name": v["tenant_name"], "roles": sorted(v["roles"])} for k, v in DEMO_USERS.items()]
 
 
 class LoginBody(BaseModel):

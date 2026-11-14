@@ -35,3 +35,22 @@ def test_memory_list_never_returns_embeddings(env):
     seed()
     r = client_as("alice").get("/api/memories")
     assert r.json() and all("embedding" not in m for m in r.json())
+
+
+def test_role_levels(env):
+    from fastapi import HTTPException
+    import pytest
+    from app.auth import principal_for
+    from app.memory import governance
+    from app.services import runs
+    from scripts.seed_demo import DEMO_INCIDENT
+    seed()
+    maya = principal_for("maya")  # Admin: can approve, cannot govern memory
+    assert maya.role == "Admin" and maya.has("approver") and not maya.has("memory_admin")
+    with pytest.raises(HTTPException) as e:
+        governance.invalidate_memory(maya, "mem_alpha_secrets_iam")
+    assert e.value.status_code == 403 and "Super Admin" in e.value.detail
+    inc = runs.create_incident(maya, DEMO_INCIDENT)
+    run = runs.start_run(maya, inc["_id"])
+    assert runs.decide_approval(maya, run["_id"], True)["status"] == "resolved"
+    assert principal_for("dev").role == "User" and principal_for("alice").role == "Super Admin"

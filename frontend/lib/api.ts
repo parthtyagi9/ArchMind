@@ -1,5 +1,12 @@
-export type Me = { user_id: string; name: string; tenant_id: string; tenant_name: string; roles: string[] };
-export type DemoUser = { user_id: string; name: string; tenant_name: string; roles: string[] };
+export type Role = "Super Admin" | "Admin" | "User";
+export type Me = { user_id: string; name: string; tenant_id: string; tenant_name: string; role: Role; roles: string[] };
+export type DemoUser = { user_id: string; name: string; title: string; role: Role; tenant_name: string; roles: string[] };
+
+export const ROLE_INFO: Record<Role, string> = {
+  "Super Admin": "Run agent · approve actions · correct/invalidate/purge memory",
+  Admin: "Run agent · approve actions",
+  User: "File incidents · run agent",
+};
 
 export type Step = {
   n: number;

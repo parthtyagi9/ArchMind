@@ -116,5 +116,7 @@ def set_embedder(e: Embedder | None) -> None:
 def get_embedder() -> Embedder:
     global _embedder
     if _embedder is None:
-        _embedder = VoyageEmbedder() if get_settings().embedding_provider == "voyage" else GeminiEmbedder()
+        p = get_settings().embedding_provider
+        _embedder = (VoyageEmbedder() if p == "voyage" else GeminiEmbedder() if p == "gemini"
+                     else HashEmbedder(get_settings().embedding_dimensions))  # "local": offline, lexical
     return _embedder

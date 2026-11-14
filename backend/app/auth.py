@@ -23,22 +23,36 @@ class Principal:
     name: str
     tenant_id: str
     tenant_name: str
-    roles: frozenset[str]
+    roles: frozenset[str]  # permissions derived from `role`
+    role: str = "User"
 
     def has(self, role: str) -> bool:
         return role in self.roles
 
 
-# Synthetic demo directory. roles: responder (run agent), approver (approve state changes),
-# memory_admin (correct / invalidate / purge memories).
-DEMO_USERS: dict[str, dict] = {
-    "alice": {"name": "Alice Chen (SRE lead)", "tenant_id": "tenant_alpha", "tenant_name": "Alpha Payments",
-              "roles": {"responder", "approver", "memory_admin"}},
-    "dev": {"name": "Dev Patel (on-call engineer)", "tenant_id": "tenant_alpha", "tenant_name": "Alpha Payments",
-            "roles": {"responder"}},
-    "bob": {"name": "Bob Okafor (platform lead)", "tenant_id": "tenant_beta", "tenant_name": "Beta Logistics",
-            "roles": {"responder", "approver", "memory_admin"}},
+# Role levels -> permissions. Permissions are what the code checks:
+#   responder    = file incidents, run the agent
+#   approver     = approve/reject state-changing actions, run the A/B experiment
+#   memory_admin = correct / invalidate / purge memories
+ROLE_PERMISSIONS: dict[str, set[str]] = {
+    "Super Admin": {"responder", "approver", "memory_admin"},
+    "Admin": {"responder", "approver"},
+    "User": {"responder"},
 }
+
+# Synthetic demo directory (no real people, no passwords).
+DEMO_USERS: dict[str, dict] = {
+    "alice": {"name": "Alice Chen", "title": "SRE lead", "role": "Super Admin",
+              "tenant_id": "tenant_alpha", "tenant_name": "Alpha Payments"},
+    "maya": {"name": "Maya Singh", "title": "Platform engineer", "role": "Admin",
+             "tenant_id": "tenant_alpha", "tenant_name": "Alpha Payments"},
+    "dev": {"name": "Dev Patel", "title": "On-call engineer", "role": "User",
+            "tenant_id": "tenant_alpha", "tenant_name": "Alpha Payments"},
+    "bob": {"name": "Bob Okafor", "title": "Platform lead", "role": "Super Admin",
+            "tenant_id": "tenant_beta", "tenant_name": "Beta Logistics"},
+}
+for _u in DEMO_USERS.values():
+    _u["roles"] = ROLE_PERMISSIONS[_u["role"]]
 
 
 def _serializer() -> URLSafeTimedSerializer:
@@ -53,7 +67,7 @@ def issue_token(user_id: str) -> str:
 
 def principal_for(user_id: str) -> Principal:
     u = DEMO_USERS[user_id]
-    return Principal(user_id, u["name"], u["tenant_id"], u["tenant_name"], frozenset(u["roles"]))
+    return Principal(user_id, u["name"], u["tenant_id"], u["tenant_name"], frozenset(u["roles"]), u["role"])
 
 
 def decode_token(token: str) -> Principal:
@@ -75,4 +89,5 @@ def current_principal(recallops_session: str | None = Cookie(default=None)) -> P
 
 def require(principal: Principal, role: str) -> None:
     if not principal.has(role):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, f"Role '{role}' required")
+        need = next((r for r in ("User", "Admin", "Super Admin") if role in ROLE_PERMISSIONS[r]), role)
+        raise HTTPException(status.HTTP_403_FORBIDDEN, f"Requires {need} (you are {principal.role})")

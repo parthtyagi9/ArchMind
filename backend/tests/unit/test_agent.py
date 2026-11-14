@@ -132,3 +132,16 @@ def test_leaked_memory_would_change_behavior_but_isolation_prevents_it(env):
     assert "mem_beta_secrets_rotate" not in run["retrieved_memory_ids"]
     first_tool = next(s["tool"] for s in run["steps"] if s["kind"] == "tool")
     assert first_tool != "rotate_secret"
+
+
+def test_rule_based_offline_planner_uses_governed_memory(env):
+    from app.agents.rules_llm import RuleBasedLLM
+    set_llm(RuleBasedLLM())
+    inc = _incident()
+    exp = runs.run_experiment(ALICE, inc["_id"])
+    off, on = exp["arms"]["without_memory"], exp["arms"]["with_memory"]
+    assert off["status"] == on["status"] == "resolved"
+    assert on["metrics"]["tool_sequence"] == ["repair_secret_access"]
+    assert off["metrics"]["diagnostic_calls"] == 5
+    cited = [s for s in on["steps"] if s.get("memory_ids_used")]
+    assert cited and cited[0]["memory_ids_used"] == ["mem_alpha_secrets_iam"]

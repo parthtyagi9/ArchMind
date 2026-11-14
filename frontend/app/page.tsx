@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Activity, Database, FlaskConical, LogOut, ScrollText, ShieldCheck } from "lucide-react";
-import { api, ApiError, type DemoUser, type Me, type Run } from "@/lib/api";
+import { api, ApiError, ROLE_INFO, type DemoUser, type Me, type Role, type Run } from "@/lib/api";
 import { AuditTimeline } from "@/components/AuditTimeline";
 import { Experiment } from "@/components/Experiment";
 import { MemoryInspector } from "@/components/MemoryInspector";
@@ -48,7 +48,7 @@ export default function Home() {
           <Badge tone="warn">simulated AWS · demo identity</Badge>
           {me && (
             <div className="flex items-center gap-2 rounded-lg border border-line bg-panel px-3 py-1.5">
-              <div className="text-right"><div className="text-xs font-medium">{me.name}</div><div className="text-[11px] text-muted">{me.tenant_name} · {me.roles.join(", ")}</div></div>
+              <div className="text-right"><div className="flex items-center justify-end gap-1.5 text-xs font-medium">{me.name}<RoleBadge role={me.role} /></div><div className="text-[11px] text-muted">{me.tenant_name}</div></div>
               <Button size="sm" variant="ghost" onClick={logout}><LogOut className="h-3.5 w-3.5" /></Button>
             </div>
           )}
@@ -62,7 +62,8 @@ export default function Home() {
           <div className="mt-4 space-y-2">
             {users.map((u) => (
               <button key={u.user_id} onClick={() => login(u.user_id)} className="flex w-full items-center justify-between rounded-lg border border-line bg-panel-2 px-4 py-3 text-left hover:border-brand">
-                <div><div className="text-sm font-medium">{u.name}</div><div className="text-xs text-muted">{u.roles.join(" · ")}</div></div>
+                <div><div className="flex items-center gap-2 text-sm font-medium">{u.name} <span className="text-xs font-normal text-muted">{u.title}</span></div>
+                  <div className="mt-1 flex items-center gap-2"><RoleBadge role={u.role} /><span className="text-[11px] text-muted">{ROLE_INFO[u.role]}</span></div></div>
                 <Badge tone={u.tenant_name.startsWith("Alpha") ? "brand" : "ok"}>{u.tenant_name}</Badge>
               </button>
             ))}
@@ -91,4 +92,8 @@ export default function Home() {
       )}
     </div>
   );
+}
+
+function RoleBadge({ role }: { role: Role }) {
+  return <Badge tone={role === "Super Admin" ? "brand" : role === "Admin" ? "ok" : "neutral"}>{role}</Badge>;
 }

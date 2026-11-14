@@ -106,7 +106,7 @@ export function Workspace({ me, onRun }: { me: Me; onRun: (r: Run) => void }) {
                 {!!run.pending_action.memory_ids_used?.length && (
                   <p className="text-xs"><Badge tone="brand">based on memory {run.pending_action.memory_ids_used.join(", ")}</Badge></p>
                 )}
-                {!canApprove && <p className="text-xs text-bad">Your role cannot approve. Sign in as an approver.</p>}
+                {!canApprove && <p className="text-xs text-bad">Approving requires Admin or Super Admin (you are {me.role}).</p>}
               </div>
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => decide(false)} loading={busy === "reject"} disabled={!canApprove}><CircleSlash className="h-4 w-4" />Reject</Button>

@@ -108,5 +108,9 @@ def set_llm(llm: LLM | None) -> None:
 def get_llm() -> LLM:
     global _llm
     if _llm is None:
-        _llm = GeminiLLM()
+        if get_settings().llm_provider == "rules":
+            from app.agents.rules_llm import RuleBasedLLM
+            _llm = RuleBasedLLM()
+        else:
+            _llm = GeminiLLM()
     return _llm

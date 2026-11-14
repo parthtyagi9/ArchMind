@@ -95,6 +95,7 @@ export function MemoryInspector({ me }: { me: Me }) {
                 </div>
               )} />
             <div className="space-y-4 p-4">
+              {!admin && <p className="text-xs text-muted">Correct / invalidate / purge require Super Admin (you are {me.role}).</p>}
               {err && <p className="text-xs text-bad">{err}</p>}
               {editing && (
                 <div className="space-y-2 rounded-lg border border-brand/40 bg-brand-soft p-3">

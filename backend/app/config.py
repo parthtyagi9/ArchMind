@@ -11,12 +11,14 @@ class Settings(BaseSettings):
     mongodb_database: str = "recallops"
 
     gemini_api_key: str = ""
-    # Embeddings: "voyage" (Voyage AI, default) or "gemini". Dimensions must match the Atlas vector index.
+    # Embeddings: "voyage" (Voyage AI, default), "gemini", or "local" (offline lexical hashing; demo fallback). Dimensions must match the Atlas vector index.
     embedding_provider: str = "voyage"
     voyage_api_key: str = ""
     voyage_base_url: str = "https://api.voyageai.com"  # Atlas-issued keys: https://ai.mongodb.com
     embedding_model: str = "voyage-4"
     embedding_dimensions: int = 1024
+    # Agent planner: "gemini" or "rules" (offline deterministic planner; labeled in the UI)
+    llm_provider: str = "gemini"
     llm_model: str = "gemini-3.5-flash"
     llm_temperature: float = 0.0
     # Tried in order when the primary model is overloaded (503), rate-limited (429) or unknown (404).

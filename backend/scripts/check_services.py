@@ -1,7 +1,7 @@
 """Pre-flight: verify MongoDB, Gemini embeddings and Gemini LLM (with fallback). Run: python -m scripts.check_services"""
 import sys
 
-from app.agents.llm import Classification, GeminiLLM
+from app.agents.llm import Classification, get_llm
 from app.db import ping
 from app.config import get_settings
 from app.memory.embeddings import get_embedder
@@ -19,8 +19,8 @@ except Exception as e:
     ok = False
     print("embeddings: FAILED -", str(e)[:300])
 try:
-    llm = GeminiLLM()
-    r = llm.structured("Classify the incident.", "payment-service AccessDeniedException reading a secret", Classification)
+    llm = get_llm()
+    r = llm.structured("Classify the incident.", '<untrusted_incident>{"service": "payment-service", "error_code": "AccessDeniedException"}</untrusted_incident>', Classification)
     print("llm ok:", r.failure_category, "via", llm.model_name)
 except Exception as e:
     ok = False

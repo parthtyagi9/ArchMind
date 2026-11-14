@@ -28,7 +28,7 @@ export function Experiment({ me }: { me: Me }) {
         <CardHeader title="Controlled experiment: does memory change behavior?" icon={<FlaskConical className="h-4 w-4" />}
           sub="Same incident · same tools · same model & temperature · same approval policy · simulator reset before each arm · no memory writes"
           right={<Button onClick={run} loading={busy} disabled={!canRun}>{busy ? "Running both arms…" : "Run A/B"}</Button>} />
-        {!canRun && <p className="px-4 py-2 text-xs text-bad">Requires the approver role (both arms pre-approve state-changing actions under your identity).</p>}
+        {!canRun && <p className="px-4 py-2 text-xs text-bad">Requires Admin or Super Admin (both arms pre-approve state-changing actions under your identity). You are {me.role}.</p>}
         {err && <p className="px-4 py-2 text-xs text-bad">{err}</p>}
         {exp && a && b && (
           <div className="grid gap-px overflow-hidden border-t border-line bg-line md:grid-cols-4">
