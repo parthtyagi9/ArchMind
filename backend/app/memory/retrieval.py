@@ -3,6 +3,7 @@ a pre-filter on indexed filter fields, so other tenants', expired, inactive and 
 candidates. A second identical $match after the search is defence in depth, not the primary control."""
 from __future__ import annotations
 
+import logging
 import math
 from datetime import datetime
 
@@ -12,8 +13,9 @@ from app.db import get_db, iso, utcnow
 from app.deps import Principal
 from app.memory import repository as repo
 from app.memory.context import NONE, MemoryContext
-from app.memory.embeddings import get_embedder
+from app.memory.embeddings import get_embedder, get_reranker
 
+log = logging.getLogger("archmind.retrieval")
 PROJECTION = {"embedding": 0, "retrieval_log": 0}
 
 
@@ -65,20 +67,32 @@ def search(p: Principal, query_text: str, *, ctx: MemoryContext = NONE, k: int |
     flt = governance_filter(p, now, ctx)
     qv = get_embedder().embed(query_text, kind="query")
     coll = get_db().memories
+    rr = get_reranker()
+    pool = k * 3 if rr is not None else k  # with a reranker, fetch more candidates and let it pick the best k
     if s.vector_backend == "atlas":
-        results = list(coll.aggregate(build_vector_pipeline(qv, flt, k)))  # Atlas cosine score is (1 + cos) / 2 in [0, 1]
+        results = list(coll.aggregate(build_vector_pipeline(qv, flt, pool)))  # Atlas cosine score is (1 + cos) / 2 in [0, 1]
     else:  # test-only exact scan with the SAME governance filter
         docs = list(coll.find(flt))
         for d in docs:
             d["score"] = (1 + _cosine(qv, d["embedding"])) / 2
             d.pop("embedding", None)
-        results = sorted(docs, key=lambda d: d["score"], reverse=True)[:k]
+        results = sorted(docs, key=lambda d: d["score"], reverse=True)[:pool]
     results = [r for r in results if r.get("score", 0) >= s.memory_min_score]
+    reranked = False
+    if rr is not None and len(results) > 1:
+        # governance already happened: the reranker only re-orders memories this caller may retrieve
+        try:
+            order = rr.rerank(query_text, [f"{r.get('title', '')}. {r.get('content', '')}" for r in results], top_k=k)
+            results = [{**results[i], "rerank_score": sc} for i, sc in order]
+            reranked = True
+        except Exception as e:
+            log.warning("memory rerank failed, keeping vector order: %s", e)
+    results = results[:k]
     ids = [r["_id"] for r in results]
     if ids:
         coll.update_many({"_id": {"$in": ids}, "tenant_id": p.org_id}, {"$inc": {"retrieval_count": 1}, "$set": {"last_retrieved_at": utcnow()}})
     audit.record("memory.retrieved", p, run_id=run_id, details={"memory_version_ids": ids, "scores": [round(r["score"], 4) for r in results],
-                                                                "backend": s.vector_backend, "k": k, "repo_ids": list(ctx.repo_ids), "group_id": ctx.group_id})
+                                                                "backend": s.vector_backend, "k": k, "reranked": reranked, "repo_ids": list(ctx.repo_ids), "group_id": ctx.group_id})
     return results
 
 

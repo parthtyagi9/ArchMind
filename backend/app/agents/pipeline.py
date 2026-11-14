@@ -30,6 +30,7 @@ from app.integrations.github import GitHubError, get_github_client
 from app.memory import governance, retrieval
 from app.memory import repository as mrepo
 from app.memory.context import MemoryContext
+from app import codesearch
 from app.services import groups, provenance, repos
 from app.services import integrations as integ
 
@@ -223,14 +224,23 @@ def github_agent(ctx: Ctx) -> list[dict]:
             by_id = {r["_id"]: r for r in ctx.search_repos}
             multi = len(by_id) > 1
             where = f" across {len(by_id)} repositories" if multi else ""
-            with rec.tool("github", f"search indexed code{where} for: {', '.join(ctx.terms[:4]) or ctx.question[:60]}"):
-                hits = search_code(list(by_id), ctx.terms[:5] or [ctx.question[:40]])
+            query = " ".join(x for x in (ctx.question, sel["text"][:600] if sel else None) if x)
+            with rec.tool("github", f"search indexed code{where} for: {ctx.question[:60]}") :
+                found = codesearch.search(list(by_id), query, ctx.terms[:5])
+            hits = found["hits"]
+            how = {"semantic+rerank": f"semantic code search ({found['model']})", "semantic": f"semantic code search ({found['model']}, no reranker)",
+                   "keyword": "keyword code search (semantic search not indexed yet)"}[found["mode"]]
+            rec.note_tool("github", f"{how}: {len(hits)} code passage{'s' if len(hits) != 1 else ''}")
+            seen_files: list[dict] = []
             for h in hits:
                 r = by_id[h["repo_id"]]
-                ref = f"{r['full_name']}:{h['path']}" if multi else h["path"]
-                out.append({"kind": "code", "ref": ref, "title": ref, "detail": _snippet(h["content"], ctx.terms),
-                            "url": f"https://github.com/{r['full_name']}/blob/{r['branch']}/{h['path']}"})
-            for h in hits[:2]:
+                loc = f"{h['path']}:{h['start_line']}-{h['end_line']}"
+                ref = f"{r['full_name']}:{loc}" if multi else loc
+                out.append({"kind": "code", "ref": ref, "title": ref, "detail": clip(h["text"], 600),
+                            "url": f"https://github.com/{r['full_name']}/blob/{r['branch']}/{h['path']}#L{h['start_line']}-L{h['end_line']}"})
+                if all(x["path"] != h["path"] or x["repo_id"] != h["repo_id"] for x in seen_files):
+                    seen_files.append(h)
+            for h in seen_files[:2]:
                 r = by_id[h["repo_id"]]
                 try:
                     with rec.tool("github", f"recent commits touching {r['full_name'] + ':' if multi else ''}{h['path']}"):

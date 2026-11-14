@@ -58,6 +58,7 @@ export function RepoCard({ repo }: { repo: Repo }) {
       {repo.status === "ready" && (
         <div className="mt-3 text-[12px] text-muted">{repo.file_count} files · indexed {timeAgo(repo.indexed_at)} · connected by {repo.connected_by}</div>
       )}
+      {repo.status === "ready" && <SearchStatus repo={repo} />}
 
       {error && <ErrorBanner error={error} className="mt-3" />}
 
@@ -89,4 +90,22 @@ function StatusPill({ repo }: { repo: Repo }) {
   if (repo.status === "indexing") return <Badge tone="info"><Spinner className="h-3 w-3 text-info" />indexing</Badge>;
   if (repo.status === "failed") return <Badge tone="bad">failed</Badge>;
   return <Badge tone="ok">ready</Badge>;
+}
+
+/** Semantic code search status: the agent searches code by meaning once the repository's chunks are embedded. */
+function SearchStatus({ repo }: { repo: Repo }) {
+  const s = repo.search;
+  if (!s || s.status === "none") return <div className="mt-1 text-[11px] text-muted">Semantic code search: not built yet · Reindex to enable</div>;
+  if (s.status === "disabled") return <div className="mt-1 text-[11px] text-muted">Semantic code search: off (no Voyage or Gemini key) · keyword search is used</div>;
+  if (s.status === "failed") return <div className="mt-1 break-words text-[11px] text-warn" title={s.error ?? undefined}>Semantic code search failed: {s.error ?? "unknown error"} · keyword search is used</div>;
+  if (s.status === "embedding") {
+    const pct = s.total > 0 ? Math.min(100, Math.round((s.done / s.total) * 100)) : 0;
+    return (
+      <div className="mt-1.5 text-[11px] text-info" role="status">
+        <div className="flex items-center gap-1.5"><Spinner className="h-3 w-3 text-info" />Building semantic code search · {s.done}/{s.total} code chunks</div>
+        <div className="mt-1 h-1 overflow-hidden rounded-full bg-line/60"><div className="h-full rounded-full bg-info transition-all" style={{ width: `${pct}%` }} /></div>
+      </div>
+    );
+  }
+  return <div className="mt-1 text-[11px] text-ok">Semantic code search ready · {s.total} code chunks · {s.model}</div>;
 }

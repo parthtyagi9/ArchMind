@@ -15,7 +15,7 @@ _db_override: Database | None = None
 
 COLLECTIONS = [
     "users", "orgs", "memberships", "invites", "integrations", "repos", "source_documents", "repo_graphs",
-    "memories", "agent_runs", "compares", "audit_events", "repo_groups",
+    "memories", "agent_runs", "compares", "audit_events", "repo_groups", "code_chunks",
 ]
 NEVER = datetime(9999, 12, 31, tzinfo=timezone.utc)  # "no expiry": keeps expires_at a plain filterable field
 

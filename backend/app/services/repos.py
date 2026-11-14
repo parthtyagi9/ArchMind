@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import HTTPException, status
 
-from app import audit, code
+from app import audit, code, codesearch
 from app.config import get_settings
 from app.db import get_db, iso, new_id, utcnow
 from app.deps import Principal
@@ -25,7 +25,15 @@ def repo_api(r: dict) -> dict:
     u = get_db().users.find_one({"_id": r.get("connected_by")}, {"name": 1}) or {}
     return {"id": r["_id"], "full_name": r["full_name"], "branch": r["branch"], "private": r.get("private", False), "status": r["status"],
             "progress": r.get("progress", {"done": 0, "total": 0}), "error": r.get("error"), "file_count": r.get("file_count", 0),
-            "indexed_at": iso(r.get("indexed_at")), "connected_by": u.get("name", "unknown")}
+            "indexed_at": iso(r.get("indexed_at")), "connected_by": u.get("name", "unknown"), "search": _search_api(r.get("search"))}
+
+
+def _search_api(sr: dict | None) -> dict:
+    """Semantic code search status: embedding (with progress), ready, failed, disabled, or none (never indexed for it)."""
+    if not sr:
+        return {"status": "none", "done": 0, "total": 0, "model": None, "error": None}
+    return {"status": sr.get("status", "none"), "done": sr.get("done", 0), "total": sr.get("total", 0), "model": sr.get("model"),
+            "error": sr.get("error"), "indexed_at": iso(sr.get("indexed_at"))}
 
 
 def get_repo(p: Principal, repo_id: str) -> dict:
@@ -156,6 +164,8 @@ def index_repo(repo_id: str, token: str | None) -> None:
         db.repos.update_one({"_id": repo_id}, {"$set": {"status": "ready", "file_count": total, "indexed_at": utcnow(), "error": None}})
         audit.record("repo.indexed", None, tenant_id=repo["org_id"], details={"repo": repo["full_name"], "files": total,
                                                                                "components": len(graph["nodes"])})
+        # The repository is usable now; semantic code search catches up in the background (rate limits can make it slow).
+        codesearch.index_repo(repo_id, files)
     except GitHubError as e:
         log.warning("index failed for %s: %s", repo.get("full_name"), e)
         db.repos.update_one({"_id": repo_id}, {"$set": {"status": "failed", "error": str(e)}})
@@ -169,6 +179,7 @@ def delete_repo(p: Principal, repo_id: str) -> None:
     db = get_db()
     db.source_documents.delete_many({"repo_id": repo_id})
     db.repo_graphs.delete_one({"_id": repo_id})
+    codesearch.delete_repo(repo_id)
     db.repos.delete_one({"_id": repo_id})
     db.repo_groups.update_many({"org_id": p.org_id, "repo_ids": repo_id}, {"$pull": {"repo_ids": repo_id}, "$set": {"updated_at": utcnow()}})
     audit.record("repo.removed", p, details={"repo": repo["full_name"]})

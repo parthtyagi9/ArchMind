@@ -94,25 +94,38 @@ def main() -> None:
         IndexModel([("tenant_id", ASCENDING), ("memory_id", ASCENDING)]),
         IndexModel([("tenant_id", ASCENDING), ("run_id", ASCENDING)]),
     ])
+    db.code_chunks.create_indexes([IndexModel([("repo_id", ASCENDING), ("path", ASCENDING), ("start_line", ASCENDING)]),
+                                   IndexModel([("repo_id", ASCENDING), ("hash", ASCENDING)])])
     print("collections, validators and indexes ready")
 
-    definition = vector_index_definition(s.embedding_dimensions)
-    names = {ix["name"]: ix for ix in db.memories.list_search_indexes()}
-    if s.vector_index_name in names:
-        print(f"updating vector index {s.vector_index_name}")
-        db.memories.update_search_index(s.vector_index_name, definition)
-    else:
-        print(f"creating vector index {s.vector_index_name} ({s.embedding_dimensions} dims)")
-        db.memories.create_search_index(SearchIndexModel(definition=definition, name=s.vector_index_name, type="vectorSearch"))
-    for _ in range(60):
-        ix = next((i for i in db.memories.list_search_indexes(s.vector_index_name)), None)
-        if ix and ix.get("queryable"):
-            print(f"vector index READY (status={ix.get('status')})")
-            return
-        print(f"  waiting for index... status={ix and ix.get('status')}")
-        time.sleep(5)
-    print("index not queryable yet; check the Atlas UI")
+    ensure_vector_index(db.memories, s.vector_index_name, vector_index_definition(s.embedding_dimensions))
+    ensure_vector_index(db.code_chunks, s.code_vector_index_name, code_vector_index_definition(s.code_embedding_dimensions))
 
+
+def code_vector_index_definition(dims: int) -> dict:
+    return {"fields": [
+        {"type": "vector", "path": "embedding", "numDimensions": dims, "similarity": "cosine"},
+        {"type": "filter", "path": "repo_id"},
+        {"type": "filter", "path": "org_id"},
+    ]}
+
+
+def ensure_vector_index(coll, name: str, definition: dict) -> None:
+    names = {ix["name"] for ix in coll.list_search_indexes()}
+    if name in names:
+        print(f"updating vector index {name}")
+        coll.update_search_index(name, definition)
+    else:
+        print(f"creating vector index {name} ({definition['fields'][0]['numDimensions']} dims)")
+        coll.create_search_index(SearchIndexModel(definition=definition, name=name, type="vectorSearch"))
+    for _ in range(60):
+        ix = next((i for i in coll.list_search_indexes(name)), None)
+        if ix and ix.get("queryable"):
+            print(f"vector index {name} READY (status={ix.get('status')})")
+            return
+        print(f"  waiting for {name}... status={ix and ix.get('status')}")
+        time.sleep(5)
+    print(f"{name} not queryable yet; check the Atlas UI")
 
 if __name__ == "__main__":
     try:

@@ -20,6 +20,8 @@ def recover_interrupted_work() -> None:
     db = get_db()
     r = db.repos.update_many({"status": "indexing"}, {"$set": {"status": "failed", "error": "Indexing was interrupted by a server restart. Click Reindex."}})
     a = db.agent_runs.update_many({"status": "running"}, {"$set": {"status": "failed", "finished_at": utcnow(), "error": "The run was interrupted by a server restart."}})
+    db.repos.update_many({"search.status": "embedding"}, {"$set": {"search.status": "failed",
+                                                                  "search.error": "Code embedding was interrupted by a server restart. Click Reindex."}})
     c = db.compares.update_many({"status": "running"}, {"$set": {"status": "failed", "error": "The comparison was interrupted by a server restart."}})
     if r.modified_count or a.modified_count or c.modified_count:
         log.warning("recovered interrupted work: %d repos, %d runs, %d comparisons", r.modified_count, a.modified_count, c.modified_count)
@@ -50,6 +52,9 @@ def health() -> dict:
            "llm": {"provider": s.llm_provider, "model": s.llm_model, "configured": bool(s.gemini_api_key)},
            "embeddings": {"provider": s.embedding_provider, "model": s.voyage_embedding_model if s.voyage_api_key else s.gemini_embedding_model,
                           "dimensions": s.embedding_dimensions, "configured": bool(s.voyage_api_key or s.gemini_api_key or s.embedding_provider == "local")},
+           "code_search": {"enabled": s.code_search_enabled and bool(s.voyage_api_key or s.gemini_api_key),
+                           "model": s.voyage_code_model if s.voyage_api_key else s.gemini_embedding_model if s.gemini_api_key else None,
+                           "rerank": s.voyage_rerank_model if (s.rerank_enabled and s.voyage_api_key) else None},
            "github_oauth": s.github_oauth_configured}
     try:
         out["mongodb"] = ping()
