@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import logging
 import time
+
+import httpx
 from typing import Literal, Optional, Protocol, TypeVar
 
 from pydantic import BaseModel, Field, ValidationError
@@ -46,7 +48,9 @@ class GeminiLLM:
         s = get_settings()
         if not s.gemini_api_key:
             raise RuntimeError("GEMINI_API_KEY is not set")
-        self._client = genai.Client(api_key=s.gemini_api_key)
+        from google.genai import types as _t
+        # Bounded request time so an overloaded model fails over instead of hanging the agent.
+        self._client = genai.Client(api_key=s.gemini_api_key, http_options=_t.HttpOptions(timeout=s.llm_timeout_ms))
         self.models = [s.llm_model] + [m.strip() for m in s.llm_fallback_models.split(",") if m.strip() and m.strip() != s.llm_model]
         self.model_name = self.models[0]
         self.temperature = s.llm_temperature
@@ -63,9 +67,9 @@ class GeminiLLM:
                     resp = self._client.models.generate_content(model=model, contents=prompt, config=cfg)
                     self.model_name = model
                     return resp
-                except (errors.ServerError, errors.ClientError) as e:
-                    code = getattr(e, "code", None)
-                    if code not in (429, 500, 503, 404):
+                except (errors.ServerError, errors.ClientError, httpx.TimeoutException) as e:
+                    code = getattr(e, "code", None) or (504 if isinstance(e, httpx.TimeoutException) else None)
+                    if code not in (429, 500, 503, 504, 404):
                         raise
                     last = e
                     log.warning("Gemini %s on %s (attempt %d); %s", code, model, attempt + 1,
