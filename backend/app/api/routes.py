@@ -27,8 +27,8 @@ def _me(p: Principal) -> dict:
 def health() -> dict:
     s = get_settings()
     out: dict[str, Any] = {"status": "ok", "demo_mode": s.demo_mode, "llm_model": s.llm_model,
-                           "embedding_model": s.embedding_model, "embedding_dimensions": s.embedding_dimensions,
-                           "gemini_configured": bool(s.gemini_api_key)}
+                           "embedding_provider": s.embedding_provider, "embedding_model": s.embedding_model, "embedding_dimensions": s.embedding_dimensions,
+                           "gemini_configured": bool(s.gemini_api_key), "voyage_configured": bool(s.voyage_api_key)}
     try:
         out["mongodb"] = ping()
     except Exception as e:

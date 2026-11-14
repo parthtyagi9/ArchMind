@@ -25,6 +25,9 @@ PY
 if [ -z "$(get MONGODB_URI)" ]; then
   read -rsp "Paste MONGODB_URI (input hidden): " v; echo; setv MONGODB_URI "$v"
 fi
+if [ -z "$(get VOYAGE_API_KEY)" ]; then
+  read -rsp "Paste VOYAGE_API_KEY (input hidden): " v; echo; setv VOYAGE_API_KEY "$v"
+fi
 if [ -z "$(get GEMINI_API_KEY)" ]; then
   read -rsp "Paste GEMINI_API_KEY (input hidden): " v; echo; setv GEMINI_API_KEY "$v"
 fi

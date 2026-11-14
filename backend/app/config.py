@@ -11,12 +11,16 @@ class Settings(BaseSettings):
     mongodb_database: str = "recallops"
 
     gemini_api_key: str = ""
-    embedding_model: str = "gemini-embedding-001"
-    embedding_dimensions: int = 768
-    llm_model: str = "gemini-3.8-flash"
+    # Embeddings: "voyage" (Voyage AI, default) or "gemini". Dimensions must match the Atlas vector index.
+    embedding_provider: str = "voyage"
+    voyage_api_key: str = ""
+    voyage_base_url: str = "https://api.voyageai.com"  # Atlas-issued keys: https://ai.mongodb.com
+    embedding_model: str = "voyage-4"
+    embedding_dimensions: int = 1024
+    llm_model: str = "gemini-3.5-flash"
     llm_temperature: float = 0.0
     # Tried in order when the primary model is overloaded (503), rate-limited (429) or unknown (404).
-    llm_fallback_models: str = "gemini-3.5-flash,gemini-2.5-flash,gemini-3.5-flash-lite"
+    llm_fallback_models: str = "gemini-2.5-flash,gemini-3.8-flash,gemini-3.5-flash-lite"
 
     # "atlas" uses $vectorSearch. "local" is an exact cosine scan used ONLY by unit tests
     # (mongomock has no $vectorSearch). Both paths share the same governance filter.

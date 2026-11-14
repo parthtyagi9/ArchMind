@@ -1,4 +1,4 @@
-"""Embedding providers. Production path: Gemini gemini-embedding-001 truncated to 768 dims
+"""Embedding providers. Production path: Voyage AI voyage-4 at 1024 dims (Gemini gemini-embedding-001 supported)
 (must equal numDimensions in the Atlas vector index). HashEmbedder is a deterministic
 bag-of-words stand-in used only by unit tests, which cannot reach Gemini."""
 from __future__ import annotations
@@ -49,6 +49,41 @@ class GeminiEmbedder:
         return _normalize(vec)
 
 
+class VoyageEmbedder:
+    """Voyage AI embeddings over its REST API. Works with keys from voyageai.com
+    (https://api.voyageai.com) and with Atlas-issued keys (VOYAGE_BASE_URL=https://ai.mongodb.com)."""
+
+    def __init__(self) -> None:
+        import httpx
+
+        s = get_settings()
+        if not s.voyage_api_key:
+            raise RuntimeError("VOYAGE_API_KEY is not set")
+        self.model = s.embedding_model
+        self.dimensions = s.embedding_dimensions
+        self._url = s.voyage_base_url.rstrip("/") + "/v1/embeddings"
+        self._http = httpx.Client(timeout=30, headers={"Authorization": f"Bearer {s.voyage_api_key}"})
+
+    def embed(self, text: str, *, kind: str = "document") -> list[float]:
+        body = {"input": [text], "model": self.model, "input_type": "document" if kind == "document" else "query",
+                "output_dimension": self.dimensions}
+        last = None
+        for attempt in range(3):
+            r = self._http.post(self._url, json=body)
+            if r.status_code in (429, 500, 502, 503):
+                last = r.text[:200]
+                import time
+                time.sleep(1.5 * (attempt + 1))
+                continue
+            if r.status_code >= 400:
+                raise RuntimeError(f"Voyage API {r.status_code}: {r.text[:300]}")
+            vec = r.json()["data"][0]["embedding"]
+            if len(vec) != self.dimensions:
+                raise RuntimeError(f"Embedding has {len(vec)} dims, index expects {self.dimensions}")
+            return _normalize(vec)
+        raise RuntimeError(f"Voyage API unavailable: {last}")
+
+
 class HashEmbedder:
     """Test-only. Similar wording -> overlapping tokens -> higher cosine. Not semantic."""
 
@@ -74,5 +109,5 @@ def set_embedder(e: Embedder | None) -> None:
 def get_embedder() -> Embedder:
     global _embedder
     if _embedder is None:
-        _embedder = GeminiEmbedder()
+        _embedder = VoyageEmbedder() if get_settings().embedding_provider == "voyage" else GeminiEmbedder()
     return _embedder

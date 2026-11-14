@@ -4,6 +4,7 @@ import pytest
 from fastapi import HTTPException
 
 from app.auth import principal_for
+from app.config import get_settings
 from app.db import utcnow
 from app.memory import governance, repository as repo, retrieval
 from scripts.seed_demo import seed
@@ -19,7 +20,7 @@ def test_memory_creation_stores_embedding_and_provenance(env):
     m = repo.create_memory(tenant_id="tenant_alpha", content="x fixed by y", service="s", error_code="E",
                            resolution_action="repair_secret_access", outcome="success", source_incident_id="inc_1")
     doc = env["db"].memories.find_one({"_id": m["_id"]})
-    assert len(doc["embedding"]) == 768
+    assert len(doc["embedding"]) == get_settings().embedding_dimensions
     for f in ("tenant_id", "version", "status", "created_at", "updated_at", "expires_at", "source_incident_id"):
         assert doc[f] is not None
     assert doc["status"] == "active" and doc["version"] == 1
@@ -37,7 +38,7 @@ def test_tenant_isolation_both_directions(env):
 
 
 def test_governance_filter_is_inside_vector_search_stage():
-    pipe = retrieval.build_vector_pipeline([0.0] * 768, "tenant_alpha", utcnow(), 4)
+    pipe = retrieval.build_vector_pipeline([0.0] * 1024, "tenant_alpha", utcnow(), 4)
     vs = pipe[0]["$vectorSearch"]
     assert vs["filter"]["tenant_id"] == {"$eq": "tenant_alpha"}
     assert vs["filter"]["status"] == {"$eq": "active"}

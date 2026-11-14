@@ -16,12 +16,12 @@ RecallOps diagnoses infrastructure incidents with a LangGraph agent, executes **
 | Real | Simulated |
 |---|---|
 | MongoDB Atlas (hackathon sandbox M10), Atlas Vector Search, schema validation, indexes | AWS: IAM / Secrets Manager / KMS / VPC are a deterministic simulator whose state lives in MongoDB (`simulator_states`) |
-| Gemini `gemini-embedding-001` (768-d) embeddings and Gemini LLM decisions with structured output | Identity: demo users with a signed cookie (not production auth) |
+| **Voyage AI `voyage-4` (1024-d) embeddings** and Gemini LLM decisions with structured output (auto-fallback across Gemini models) | Identity: demo users with a signed cookie (not production auth) |
 | LangGraph state machine, approval gate, independent verification, audit log | — |
 
 ## Quick start (local)
 
-**Fastest:** `./setup.sh` from the repo root. It prompts for your Atlas URI and Gemini key (hidden input), writes `backend/.env`, checks both connections, creates indexes, seeds, and runs the unit and live tests.
+**Fastest:** `./setup.sh` from the repo root. It prompts for your Atlas URI, Voyage key and Gemini key (hidden input) where missing, writes `backend/.env`, checks both connections, creates indexes, seeds, and runs the unit and live tests.
 
 
 Prereqs: Python 3.11+, [uv](https://docs.astral.sh/uv/), Node 20+. Add your IP in Atlas → Network Access.
@@ -29,7 +29,7 @@ Prereqs: Python 3.11+, [uv](https://docs.astral.sh/uv/), Node 20+. Add your IP i
 ```bash
 # backend
 cd backend
-cp .env.example .env        # fill MONGODB_URI, GEMINI_API_KEY, SESSION_SECRET
+cp .env.example .env        # fill MONGODB_URI, VOYAGE_API_KEY, GEMINI_API_KEY, SESSION_SECRET
 uv sync
 uv run python -m scripts.create_indexes   # collections, validators, indexes, vector index (waits until queryable)
 uv run python -m scripts.seed_demo        # two tenants of synthetic memories + simulator state

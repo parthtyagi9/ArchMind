@@ -3,7 +3,8 @@ import sys
 
 from app.agents.llm import Classification, GeminiLLM
 from app.db import ping
-from app.memory.embeddings import GeminiEmbedder
+from app.config import get_settings
+from app.memory.embeddings import get_embedder
 
 ok = True
 try:
@@ -12,7 +13,8 @@ except Exception as e:
     ok = False
     print("mongodb: FAILED -", str(e)[:300])
 try:
-    print("embedding dims:", len(GeminiEmbedder().embed("hello")))
+    st = get_settings()
+    print(f"embedding dims ({st.embedding_provider}/{st.embedding_model}):", len(get_embedder().embed("hello")))
 except Exception as e:
     ok = False
     print("embeddings: FAILED -", str(e)[:300])
