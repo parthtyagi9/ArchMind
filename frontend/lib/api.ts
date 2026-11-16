@@ -53,17 +53,46 @@ function queryString(q?: Query): string {
   return s ? `?${s}` : "";
 }
 
+/** Fired while a request is being retried because the backend is unavailable (detail: true), and once it answers again
+ * (detail: false). On Render's free plan the backend sleeps when idle and needs up to about a minute to start. */
+export const WAKING_EVENT = "archmind:waking";
+
+const RETRY_STATUSES = new Set([502, 503, 504]);
+const WAKE_TIMEOUT_MS = 90_000;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+function setWaking(on: boolean) {
+  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(WAKING_EVENT, { detail: on }));
+}
+
 async function request<T>(method: string, path: string, opts: { body?: unknown; query?: Query } = {}): Promise<T> {
-  let res: Response;
-  try {
-    res = await fetch(`/api${path}${queryString(opts.query)}`, {
-      method,
-      credentials: "same-origin",
-      cache: "no-store",
-      headers: opts.body !== undefined ? { "Content-Type": "application/json", Accept: "application/json" } : { Accept: "application/json" },
-      body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
-    });
-  } catch {
+  const send = () => fetch(`/api${path}${queryString(opts.query)}`, {
+    method,
+    credentials: "same-origin",
+    cache: "no-store",
+    headers: opts.body !== undefined ? { "Content-Type": "application/json", Accept: "application/json" } : { Accept: "application/json" },
+    body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+  });
+  // Only GETs are retried: they are safe to repeat, while a retried POST could create something twice.
+  const retryable = method === "GET";
+  const started = Date.now();
+  let waking = false;
+  let res: Response | null = null;
+  for (let attempt = 0; ; attempt++) {
+    let networkError = false;
+    try {
+      res = await send();
+    } catch {
+      networkError = true;
+      res = null;
+    }
+    const unavailable = networkError || (res !== null && RETRY_STATUSES.has(res.status));
+    if (!unavailable || !retryable || Date.now() - started > WAKE_TIMEOUT_MS) break;
+    if (!waking) { waking = true; setWaking(true); }
+    await sleep(Math.min(2_000 * 2 ** attempt, 10_000));
+  }
+  if (waking) setWaking(false);
+  if (res === null) {
     throw new ApiError(0, "Cannot reach the ArchMind server. Check that the backend is running and try again.");
   }
   const text = await res.text();
